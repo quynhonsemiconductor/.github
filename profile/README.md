@@ -76,11 +76,12 @@ We build with **TypeScript** across web and API, **Terraform/HCL** for infrastru
 These are **internal QNSC repositories**. Contributions come primarily from QNSC engineers
 and approved partners.
 
-- 🌿 **Branching** — work on feature branches; open a Pull Request into the default branch.
-- ✅ **Reviews** — every PR needs at least one approving review and passing CI before merge.
-- 🧩 **Conventions** — follow the linting, formatting, and commit conventions configured in each repo.
+- 📜 **How to contribute** — see [`CONTRIBUTING.md`](../CONTRIBUTING.md) for branching, commit, and PR conventions shared across all QNSC repos.
+- 🤝 **Code of Conduct** — all contributors follow our [`CODE_OF_CONDUCT.md`](../CODE_OF_CONDUCT.md).
+- 👥 **Ownership** — reviews are routed per [`CODEOWNERS`](../.github/CODEOWNERS); new repos should copy this file as their starting point.
+- ✅ **Reviews** — every PR needs at least one approving review from a code owner and passing CI before merge.
 - 🐛 **Issues & PRs** — use the issue and pull-request templates provided by this `.github` repo.
-- 🔒 **Security** — never commit secrets or credentials. Report security concerns privately (see below).
+- 🔒 **Security** — never commit secrets or credentials. Report security concerns privately (see [`SECURITY.md`](../SECURITY.md)).
 
 ---
 

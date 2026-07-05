@@ -1,0 +1,15 @@
+# CODEOWNERS — QNSC-VN org default template
+#
+# This file lives in the org-wide `.github` repo. GitHub only reads a
+# CODEOWNERS file from within the repo it applies to, so this copy is the
+# reference template — copy it into any new repo's `.github/CODEOWNERS` and
+# adjust for that repo's structure.
+#
+# Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for everything, unless a later, more specific pattern matches.
+* @QNSC-VN/leads
+
+# Security-sensitive files always require a leads review.
+SECURITY.md          @QNSC-VN/leads
+/.github/CODEOWNERS  @QNSC-VN/leads
