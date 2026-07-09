@@ -56,7 +56,7 @@ The §2 table is the **full target**. Only the orchestration/CD layer differs by
 | Concern | **ECS Fargate phase (now)** | **EKS phase (trigger-driven)** |
 |---|---|---|
 | Compute | **ECS Fargate** + **Fargate Spot** (dev/staging, stateless workers) | EKS + **Karpenter** (EC2 Spot/Graviton bin-packing) |
-| Event-driven glue | **AWS Lambda** (cron, dev-scheduler, webhooks) — *stays Lambda after EKS too* | same |
+| Event-driven glue | **AWS Lambda** (cron, webhooks) — *stays Lambda after EKS too* | same |
 | App packaging | ECS **task definition** (templated JSON) | **Helm** `qnsc-service` base chart |
 | CD | **GitHub Actions push** → `ecs update-service` / **CodeDeploy blue-green** | **ArgoCD** app-of-apps + ApplicationSets (pull) |
 | Node autoscaling | none (Fargate is nodeless) | **Karpenter** |
@@ -192,11 +192,11 @@ Adopt only when a concrete need appears:
 | ADR-17 | Customer identity: WorkOS (B2B SSO/SCIM) preferred; Cognito if cost-first | Enterprise/hospital customers require SAML/OIDC + SCIM | Accepted, vendor TBD |
 | ADR-18 | CI supply chain to SLSA L3: sign + verify-at-admission, SAST/IaC/container scan, SBOM, SHA-pinned actions, prod approval gates | Close the supply-chain loop; least-privilege CI | Accepted |
 | ADR-19 | Observability: AMP + AMG + Fluent Bit→CloudWatch (→Loki) + OTel→X-Ray; SLOs; PagerDuty | Managed-first; control cardinality + log volume | Accepted |
-| ADR-20 | FinOps: enforced cost tags + Kubecost showback; Spot/Graviton/Savings Plans; dev-scheduler off-hours | Per-product unit economics; cut waste | Accepted |
+| ADR-20 | FinOps: enforced cost tags + Kubecost showback; Spot/Graviton/Savings Plans | Per-product unit economics; cut waste | Accepted |
 | ADR-21 | Backup/DR: AWS Backup + RDS cross-region + Velero + restore tests | Tested recovery, not just backups | Accepted |
 | ADR-22 | Compliance automation (Vanta/Drata + Audit Manager); VPC endpoints/PrivateLink for AWS API/ECR/S3 | Audit evidence; keep internal traffic off the internet | Accepted |
 | ADR-23 | EKS adoption is **trigger-gated** (team hired · Zone C real · >~15–20 services · Fargate cost high + util low · mesh/GPU/KEDA · GovCloud portability), not calendar-scheduled | Avoid paying the EKS ops/people cost before scale justifies it; Zone C is the likely forcing function | Accepted |
-| ADR-24 | **Lambda for event-driven glue only** (cron, dev-scheduler, webhooks, light async); no full-serverless primary runtime | Full-serverless is a different architecture, not a step toward EKS; cold-start/15-min/VPC-latency hurt always-on SaaS | Accepted |
+| ADR-24 | **Lambda for event-driven glue only** (cron, webhooks, light async); no full-serverless primary runtime | Full-serverless is a different architecture, not a step toward EKS; cold-start/15-min/VPC-latency hurt always-on SaaS | Accepted |
 | ADR-25 | ECS deploy: CI push (`update-service` / CodeDeploy blue-green); supply-chain verify enforced **in-pipeline** (no admission controller pre-K8s) | Fast rollback, zero-downtime; keeps the sign→verify loop closed without ArgoCD/Kyverno | Accepted |
 | ADR-26 | Landing zone is **OpenTofu-native** (Org/OUs/accounts/SCPs/security baseline in code), not AWS Control Tower | 100% GitOps, no console ClickOps, no CT lock-in; right-sized for an 8-person, dev-stage team. Revisit CT at audit/production scale. Supersedes the earlier CT choice | **Accepted 2026-07-01** |
 | ADR-27 | **Entra ID → IAM Identity Center via SAML + SCIM** (not Okta, not built-in directory); permission sets in OpenTofu; account assignments after SCIM sync; Entra app registration is a one-time manual step | Company holds M365 licenses — Entra ID is already the corporate IdP; SAML federation + SCIM provisioning gives SSO + auto-deprovisioning with no extra vendor spend | **Accepted 2026-07-01** |
@@ -327,7 +327,7 @@ Managed-first to keep day-2 load low; revisit self-hosting at cost scale.
 | Compute | **ECS now:** Fargate **Spot** (dev/staging + stateless workers), **Compute Savings Plans** for steady baseline, right-size task CPU/mem. **EKS later:** Karpenter Spot + consolidation + **Graviton** (ARM) |
 | Data | **Aurora Serverless v2** scale-down, **RDS reserved** for steady load, S3 **Intelligent-Tiering** + lifecycle |
 | Egress | Cloudflare / R2 (the largest external lever — §5) |
-| Dev waste | **dev-scheduler** module (existing) — auto-shutdown off-hours; KEDA scale-to-zero for spiky workloads |
+| Dev waste | KEDA scale-to-zero for spiky workloads |
 | Guardrails | Cost Explorer + **Budgets** + anomaly detection + alerts |
 
 Per-product cost (via Kubecost) is the number that matters for SaaS unit economics — not just the total AWS bill.
