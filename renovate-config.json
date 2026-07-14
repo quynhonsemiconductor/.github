@@ -1,0 +1,20 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":semanticCommits", ":dependencyDashboard"],
+  "packageRules": [
+    {
+      "description": "Group QNSC-VN shared CI (reusables + composite actions) into one PR",
+      "matchDepNames": ["/^QNSC-VN\\/qnsc-ci/"],
+      "groupName": "qnsc-ci shared CI",
+      "labels": ["ci", "shared"]
+    },
+    {
+      "description": "Auto-merge patch bumps of pinned GitHub Actions once checks pass",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true
+    }
+  ],
+  "prConcurrentLimit": 5,
+  "schedule": ["before 9am on monday"]
+}
