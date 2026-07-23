@@ -8,8 +8,8 @@
 # Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
 
 # Default owners for everything, unless a later, more specific pattern matches.
-* @QNSC-VN/leads
+* @QNSC-VN/platform-infra
 
-# Security-sensitive files always require a leads review.
-SECURITY.md          @QNSC-VN/leads
-/.github/CODEOWNERS  @QNSC-VN/leads
+# Security-sensitive files always require a platform-infra review.
+SECURITY.md          @QNSC-VN/platform-infra
+/.github/CODEOWNERS  @QNSC-VN/platform-infra
