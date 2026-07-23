@@ -1,0 +1,37 @@
+# =============================================================================
+# Security · Scan — committed-secret gate.
+#
+# This repo is org-wide config/docs (community health defaults, CODEOWNERS
+# template, profile README) — no app code or IaC, so the shared QNSC-VN/qnsc-ci
+# security suite (Semgrep/Trivy, app-oriented) and Checkov (Terraform-oriented)
+# don't apply. Gitleaks alone still matters: this repo is public, so a
+# committed secret here is exposed org-wide immediately.
+# =============================================================================
+name: Security · Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 4 * * 1" # weekly Monday 04:00 UTC
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  secret-scan:
+    name: Secret scan (Gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - uses: QNSC-VN/qnsc-ci/actions/scan-secrets@v1.4.0
