@@ -9,7 +9,7 @@
 #
 # actions-security (zizmor) matters MORE here than most repos: this repo is
 # PUBLIC, so a vulnerable workflow pattern is visible to anyone, not just the
-# org. Non-blocking on first rollout; flip `blocking: true` after triaging.
+# org. Blocking — the initial rollout ran clean, no findings.
 # =============================================================================
 name: Security · Scan
 
@@ -45,3 +45,5 @@ jobs:
       contents: read
       security-events: write
     uses: QNSC-VN/qnsc-ci/.github/workflows/actions-security.yml@v1
+    with:
+      blocking: true
