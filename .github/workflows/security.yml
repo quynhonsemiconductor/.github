@@ -6,6 +6,10 @@
 # security suite (Semgrep/Trivy, app-oriented) and Checkov (Terraform-oriented)
 # don't apply. Gitleaks alone still matters: this repo is public, so a
 # committed secret here is exposed org-wide immediately.
+#
+# actions-security (zizmor) matters MORE here than most repos: this repo is
+# PUBLIC, so a vulnerable workflow pattern is visible to anyone, not just the
+# org. Non-blocking on first rollout; flip `blocking: true` after triaging.
 # =============================================================================
 name: Security · Scan
 
@@ -35,3 +39,9 @@ jobs:
           fetch-depth: 0
 
       - uses: QNSC-VN/qnsc-ci/actions/scan-secrets@v1.9.0
+
+  actions-security:
+    permissions:
+      contents: read
+      security-events: write
+    uses: QNSC-VN/qnsc-ci/.github/workflows/actions-security.yml@v1
