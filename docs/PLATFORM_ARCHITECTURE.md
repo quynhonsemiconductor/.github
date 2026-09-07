@@ -31,7 +31,7 @@ The single organizing principle:
 |---|---|---|---|---|
 | **IC** | 28nm chip design (EDA) | Internal chip engineers | **Military / ITAR-controlled** | **Contract signed — active** |
 | **opshub** | Internal ops (employees, assets, requests) | Staff | Ordinary corporate | Live (ECS) |
-| **Rally** | Multi-tenant SaaS | External customers | Standard commercial | Live (ECS) |
+| **Rova** | Multi-tenant SaaS | External customers | Standard commercial | Live (ECS) |
 | **Learning** | Udemy/Coursera-style SaaS | External customers | Standard commercial | Roadmap |
 | **Knowledge base** | SaaS | External customers | Standard commercial | Roadmap |
 | **Hospital Camera AI** | AI + SaaS | Hospitals | **PHI / HIPAA-class** | Roadmap (future) |
@@ -51,7 +51,7 @@ QNSC
 │     ZERO shared infrastructure, identity, or pipeline with B/C.
 │
 ├── ZONE B — Commercial platform ──────────────────  ECS Fargate now → EKS when triggered (§13.2)
-│   ├── B1  external customer-facing SaaS:  rally · learning · knowledge-base
+│   ├── B1  external customer-facing SaaS:  rova · learning · knowledge-base
 │   └── B2  internal:                       opshub · small tools/jobs
 │     Hard isolation between B1 and B2 (separate services + SGs on ECS; node pools on EKS).
 │
@@ -126,7 +126,7 @@ AWS Organization (qnsc) — commercial + medical
 
 ## 6. Zone B — Commercial platform
 
-The primary platform. Hosts all ordinary-data products, large and small. **Current runtime is ECS Fargate** — the right choice for QNSC's stage (see [§8](#8-compute-platform-decision--ecs-fargate-now-eks-when-triggered)). Rally and opshub run on ECS Fargate; new products (Learning, KB) are born on ECS Fargate too. **EKS is the destination when a trigger fires** (§13.2) — not a committed near-term migration.
+The primary platform. Hosts all ordinary-data products, large and small. **Current runtime is ECS Fargate** — the right choice for QNSC's stage (see [§8](#8-compute-platform-decision--ecs-fargate-now-eks-when-triggered)). Rova and opshub run on ECS Fargate; new products (Learning, KB) are born on ECS Fargate too. **EKS is the destination when a trigger fires** (§13.2) — not a committed near-term migration.
 
 ### 6.1 Sub-tiering: external vs internal
 
@@ -134,7 +134,7 @@ Even within "commercial," external customer-facing workloads and internal toolin
 
 ```
 Zone B (per env)
-├── B1 — external customer-facing:  rally · learning · knowledge-base
+├── B1 — external customer-facing:  rova · learning · knowledge-base
 │        Dedicated node pool / capacity (tainted). Internet-facing via WAF + ALB.
 ├── B2 — internal:                  opshub · small tools/jobs
 │        Dedicated node pool / capacity (tainted). Not internet-exposed by default.
@@ -149,7 +149,7 @@ Zone B (per env)
 
 `Namespace` (logical) + `RBAC` (who can deploy) + `ResourceQuota` (CPU/mem caps) + `NetworkPolicy` (who talks to whom, default-deny). Node-level separation only between **tiers** (B1/B2), not between every product — products within a tier may bin-pack.
 
-### 6.3 Multi-tenant SaaS — tenant isolation (Rally, Learning, KB)
+### 6.3 Multi-tenant SaaS — tenant isolation (Rova, Learning, KB)
 
 Product isolation (above) is **not** customer isolation. Each SaaS product must declare its tenant model; this drives the data design and the SOC 2 story.
 
@@ -159,7 +159,7 @@ Product isolation (above) is **not** customer isolation. Each SaaS product must 
 | **Bridge** — shared app, schema- or DB-per-tenant | Stronger data isolation | Medium | Tenants needing data separation |
 | **Siloed** — dedicated stack per tenant | Physical | Highest | Enterprise/regulated tenants on contract |
 
-**Default for Rally:** pooled with enforced RLS and a `tenant_id` on every row and every query path, with the option to promote a large/regulated tenant to bridge or siloed. Document the chosen model in `rally-infra`.
+**Default for Rova:** pooled with enforced RLS and a `tenant_id` on every row and every query path, with the option to promote a large/regulated tenant to bridge or siloed. Document the chosen model in `rova`.
 
 ### 6.4 Small / spiky projects
 
@@ -220,7 +220,7 @@ At QNSC's current stage the decisive axis is the last one. With no dedicated pla
 
 **Serverless (Lambda) — a placement, not the platform.** Lambda is for **event-driven glue**: cron jobs, webhooks, light async/S3-event processing. Those stay Lambda even after EKS arrives. QNSC does **not** adopt full serverless (Lambda + API Gateway as the primary app runtime) because (a) it is a *different* architecture, not a step toward EKS — going there **abandons** the K8s destination and the ECS→EKS carryover; (b) cold starts, the 15-minute cap, and VPC-attach latency hurt always-on SaaS APIs. **Rule: containers on Fargate for services; Lambda for glue.**
 
-**The hard prerequisite still holds:** migrating **live products** (Rally, opshub) to EKS does not begin until a **staffed platform team** (2–3 engineers with real production EKS day-2 experience) is in place. Authoring modules can start earlier; live-product cutover cannot.
+**The hard prerequisite still holds:** migrating **live products** (Rova, opshub) to EKS does not begin until a **staffed platform team** (2–3 engineers with real production EKS day-2 experience) is in place. Authoring modules can start earlier; live-product cutover cannot.
 
 ---
 
@@ -230,11 +230,11 @@ The 3-layer model is **platform-agnostic** and carries from ECS to EKS unchanged
 
 | Layer | Repos | ECS role (now) | EKS role (later) |
 |---|---|---|---|
-| **Shared platform** | `qnsc-infra`, `qnsc-tf-modules` | Landing zone + ECS/network/data modules | + EKS platform module |
-| **Shared delivery** | `qnsc-ci` (now) → `qnsc-gitops` (later) | `qnsc-ci`: reusable GHA — build, scan, sign, **push-deploy** to ECS | `qnsc-gitops`: ArgoCD ApplicationSets + shared Helm base — **pull-based** |
-| **Per-product** | `rally`, `opshub`, … (monorepos) | `deploy/ecs/` task-def + service (via `infra/`) | Per-product Helm `chart/` + namespace + ArgoCD Application |
+| **Shared platform** | `infra`, `tf-modules` | Landing zone + ECS/network/data modules | + EKS platform module |
+| **Shared delivery** | `ci` (now) → `qnsc-gitops` (later) | `ci`: reusable GHA — build, scan, sign, **push-deploy** to ECS | `qnsc-gitops`: ArgoCD ApplicationSets + shared Helm base — **pull-based** |
+| **Per-product** | `rova`, `opshub`, … (monorepos) | `deploy/ecs/` task-def + service (via `infra/`) | Per-product Helm `chart/` + namespace + ArgoCD Application |
 
-> **Delivery repo by phase:** In the **ECS phase (now)**, reusable CI/CD lives in **`qnsc-ci`** and deploys are push-based (`update-service`). **`qnsc-gitops` is created only when the EKS trigger fires** — it is the pull-based ArgoCD config hub, not a CI actions library. (See [REPOSITORY_STRUCTURE.md §4](./REPOSITORY_STRUCTURE.md#4-qnsc-gitops-layout-argocd-config-hub--eks-phase).)
+> **Delivery repo by phase:** In the **ECS phase (now)**, reusable CI/CD lives in **`ci`** and deploys are push-based (`update-service`). **`qnsc-gitops` is created only when the EKS trigger fires** — it is the pull-based ArgoCD config hub, not a CI actions library. (See [REPOSITORY_STRUCTURE.md §4](./REPOSITORY_STRUCTURE.md#4-qnsc-gitops-layout-argocd-config-hub--eks-phase).)
 
 **Modules to build:**
 1. **Landing-zone module** — Organizations accounts, the core-account layout (§4), SCPs, IAM Identity Center (SSO).
@@ -286,7 +286,7 @@ First-class, not implied. These apply org-wide (Zones B/C); Zone A runs an equiv
 
 ## 11. Data: tenancy, DR, residency
 
-**Tenancy:** see [§6.3](#63-multi-tenant-saas--tenant-isolation-rally-learning-kb) for the SaaS tenant model.
+**Tenancy:** see [§6.3](#63-multi-tenant-saas--tenant-isolation-rova-learning-kb) for the SaaS tenant model.
 
 **Availability & DR (state targets per zone):**
 
@@ -324,8 +324,8 @@ A **destination reached by triggers, not by calendar.** Zone B runs on **ECS Far
 | **0 — now (ECS Fargate is the platform)** | (a) **Kick off Zone A ITAR engagement** (GovCloud/on-prem, specialist) — top priority, parallel track. (b) **Harden the landing zone**: core accounts (§4), SCPs, GuardDuty/Security Hub/CloudTrail→log-archive. (c) Build/run **Zone B on ECS Fargate**: shared ALB + host/path routing, capacity providers (Fargate + Fargate Spot), CI push-deploy, Secrets Manager injection, CloudWatch/ADOT observability. (d) New products (Learning, KB) **born on ECS Fargate**. | Current platform. IC signed |
 | **1 — well-architected ECS** | Mature the ECS platform: **blue/green** deploys (CodeDeploy) + instant rollback, service auto-scaling (target tracking), **B1/B2** service + security-group separation, cost tags + Budgets, **supply-chain gates in CI** (sign + scan, block unsigned/critical-CVE before `update-service`). | Ongoing on ECS |
 | **2 — EKS trigger fires** | When any trigger in §13.2 fires (most likely **Zone C** or **platform team hired**): author + harden the **EKS platform module** (cluster + Karpenter + ArgoCD + External Secrets + ALB Controller + Kyverno). If the trigger is Zone C, **build it in Zone C first** (§7), then reuse for Zone B. | Trigger-gated (§13.2) |
-| **3 — migrate Zone B (opportunistic)** | Once the EKS module + platform team exist: migrate **opshub first** (internal, lower blast radius), then **Rally** (external) — service-by-service, workers before user-facing APIs, parallel-run + traffic-shift + instant rollback (§13.3). New products may start on EKS from here. | After module proven + team staffed |
-| **4 — retire ECS** | Decommission ECS services and push-based deploy actions once everything is green on EKS. Rally tenancy model enforced. | After all services migrated |
+| **3 — migrate Zone B (opportunistic)** | Once the EKS module + platform team exist: migrate **opshub first** (internal, lower blast radius), then **Rova** (external) — service-by-service, workers before user-facing APIs, parallel-run + traffic-shift + instant rollback (§13.3). New products may start on EKS from here. | After module proven + team staffed |
+| **4 — retire ECS** | Decommission ECS services and push-based deploy actions once everything is green on EKS. Rova tenancy model enforced. | After all services migrated |
 | **5 — steady state** | One EKS platform across Zone B + Zone C (isolated, own accounts + in-zone ArgoCD + GPU). ECS gone. | End state |
 
 ### 13.2 EKS migration triggers (adopt when ANY fires)
@@ -358,7 +358,7 @@ Low-risk because **only the compute tier moves — not the data**, and the image
 - **Data stores stay put.** RDS, ElastiCache, S3, SQS/SNS untouched; EKS pods hit the same endpoints. No data migration.
 - **Secrets** move from ECS task injection to **External Secrets Operator** (same Secrets Manager source).
 - **Per service:** write Helm chart → deploy to EKS **alongside** the running ECS service → **shift traffic gradually** (weighted target group / DNS) → observe SLOs → roll forward or **instant rollback** to ECS. Never a flag-day.
-- **Order:** opshub before Rally; within a product, background workers/cron before the user-facing API.
+- **Order:** opshub before Rova; within a product, background workers/cron before the user-facing API.
 
 **Why this sequencing:** running products keep serving on ECS with zero rewrite throughout. Zone A (signed, urgent) does not wait on any of this. Live-product cutover begins only after the platform team is in place and the EKS module is proven in production.
 
