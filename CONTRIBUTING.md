@@ -1,7 +1,7 @@
 # Contributing to QNSC
 
 Thanks for contributing to a QNSC repository. This guide covers the
-conventions shared across the QNSC-VN organization. Individual repos may add
+conventions shared across the quynhonsemiconductor organization. Individual repos may add
 their own `CONTRIBUTING.md` for project-specific setup — this document is the
 baseline that applies everywhere unless a repo says otherwise.
 

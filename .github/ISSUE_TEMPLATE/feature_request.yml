@@ -12,7 +12,7 @@ body:
     id: component
     attributes:
       label: Target component / repository
-      placeholder: e.g. rally-web, opshub-api
+      placeholder: e.g. rova, opshub
     validations:
       required: false
   - type: textarea

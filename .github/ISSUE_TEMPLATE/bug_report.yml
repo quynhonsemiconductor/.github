@@ -13,7 +13,7 @@ body:
     attributes:
       label: Affected component / repository
       description: Which service or repo is impacted?
-      placeholder: e.g. rally-api, opshub-web, qnsc-infra
+      placeholder: e.g. rova, opshub, infra
     validations:
       required: true
   - type: textarea

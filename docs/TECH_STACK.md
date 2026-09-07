@@ -13,7 +13,7 @@
 2. **Provisioning boundary is stable across phases.** OpenTofu owns durable infrastructure in both phases. **ECS phase (now):** CI push-deploys the app (renders task def, `ecs update-service`) — OpenTofu owns the cluster/ALB/IAM/data shell. **EKS phase (later):** OpenTofu stops at the cluster door and ArgoCD owns everything inside (pull-based GitOps). Same principle — durable infra in OpenTofu, the running app in the deploy tool. See [§3](#3-the-provisioning-boundary-opentofu--argocd) and [§4](#4-deploy-flow).
 3. **Managed over self-hosted while the team is small.** Prefer AWS-managed services (AMP, AMG, RDS) to reduce day-2 load; revisit self-hosting only when cost at scale justifies the operational burden.
 4. **YAGNI.** No service mesh, no cert-manager, no second IaC tool until a concrete need exists. See [§8](#8-deferred-yagni).
-5. **Build on what exists.** OpenTofu, GitHub Actions, ECR, and the `qnsc-tf-modules` library are already in use — extend them, don't replace.
+5. **Build on what exists.** OpenTofu, GitHub Actions, ECR, and the `tf-modules` library are already in use — extend them, don't replace.
 
 ---
 
@@ -209,7 +209,7 @@ Adopt only when a concrete need appears:
 
 | Use | Engine | Notes |
 |---|---|---|
-| Customer SaaS (Rally, Learning, KB) | **Aurora PostgreSQL** (Serverless v2 where spiky) | 15 read replicas, ~30s failover, storage autoscaling. Worth the ~20% premium for revenue-facing workloads. |
+| Customer SaaS (Rova, Learning, KB) | **Aurora PostgreSQL** (Serverless v2 where spiky) | 15 read replicas, ~30s failover, storage autoscaling. Worth the ~20% premium for revenue-facing workloads. |
 | Internal / small (opshub, tools) | **RDS PostgreSQL** | Cheaper and simpler; does not need Aurora scaling. |
 | AI vector search (KB, hospital AI) | **PostgreSQL + pgvector** | Embeddings beside the data; no dedicated vector DB (Pinecone/Weaviate) until scale forces it. |
 | KV at massive scale / serverless (sessions, flags, high-write logs) | **DynamoDB** — only for these patterns | Not the default. Postgres first. |
