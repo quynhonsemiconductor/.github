@@ -3,9 +3,9 @@
   "extends": ["config:recommended", ":semanticCommits", ":dependencyDashboard"],
   "packageRules": [
     {
-      "description": "Group QNSC-VN shared CI (reusables + composite actions) into one PR",
-      "matchDepNames": ["/^QNSC-VN\\/qnsc-ci/"],
-      "groupName": "qnsc-ci shared CI",
+      "description": "Group shared CI (reusables + composite actions) into one PR",
+      "matchDepNames": ["/^quynhonsemiconductor\\/ci/"],
+      "groupName": "shared CI",
       "labels": ["ci", "shared"]
     },
     {

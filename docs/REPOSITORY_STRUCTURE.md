@@ -4,7 +4,7 @@
 > **Audience:** Engineering, platform/DevOps.
 > **Owner:** Platform team.
 > **Context:** Greenfield restructure. The current repos (`qnsc-*`, `rally-*`, `opshub-*`, …) are replaced by the topology below via a **safe, additive migration** — see [§5](#5-fresh-start-migration-archive-never-delete-first).
-> **Phase note:** The repo topology is the **same in both compute phases**. Only the deploy layer differs: **ECS phase (now)** deploys via `qnsc-ci` + each product's `deploy/ecs/`; **EKS phase (later)** adds `chart/` per product and the `qnsc-gitops` ArgoCD hub. See [§3](#3-per-product-monorepo-layout) and [§4](#4-qnsc-gitops-layout-argocd-config-hub--eks-phase).
+> **Phase note:** The repo topology is the **same in both compute phases**. Only the deploy layer differs: **ECS phase (now)** deploys via `ci` + each product's `deploy/ecs/`; **EKS phase (later)** adds `chart/` per product and the `qnsc-gitops` ArgoCD hub. See [§3](#3-per-product-monorepo-layout) and [§4](#4-qnsc-gitops-layout-argocd-config-hub--eks-phase).
 
 ---
 
@@ -23,19 +23,19 @@
 
 | Repo | Purpose |
 |---|---|
-| `qnsc-infra` | Live OpenTofu: AWS Organization, accounts, landing zone, per-env **ECS clusters** now (+ **EKS clusters** at the EKS phase), shared networking |
-| `qnsc-tf-modules` | Reusable OpenTofu modules (**ecs-service**, network, rds/aurora, cache, secrets now; **eks** added at the EKS phase) |
-| `qnsc-ci` *(or org `.github`)* | Reusable CI workflows + composite actions (build/test/scan/sign/push + **ECS push-deploy** now). **The active CD home in the ECS phase.** |
+| `infra` | Live OpenTofu: AWS Organization, accounts, landing zone, per-env **ECS clusters** now (+ **EKS clusters** at the EKS phase), shared networking |
+| `tf-modules` | Reusable OpenTofu modules (**ecs-service**, network, rds/aurora, cache, secrets now; **eks** added at the EKS phase) |
+| `ci` *(or org `.github`)* | Reusable CI workflows + composite actions (build/test/scan/sign/push + **ECS push-deploy** now). **The active CD home in the ECS phase.** |
 | `qnsc-gitops` | **ArgoCD config hub** *(EKS phase — created at migration, §4)* — app-of-apps, ApplicationSets, platform add-ons, cluster/env registry, shared `qnsc-service` Helm base chart, per-product env values + live image tags |
 | `qnsc-packages` *(only if needed)* | Shared libraries published to CodeArtifact — **only** for code shared *across products*; code shared *within* a product lives in that product's `packages/` |
 
-> **No dedicated template repo.** Scaffolding for new products uses GitHub's native **template repository** feature on the first clean product repo, or a `templates/` cookiecutter in `qnsc-ci`. Revisit a dedicated scaffolder/CLI only at product #3+. (Deferred — ADR-R7.)
+> **No dedicated template repo.** Scaffolding for new products uses GitHub's native **template repository** feature on the first clean product repo, or a `templates/` cookiecutter in `ci`. Revisit a dedicated scaffolder/CLI only at product #3+. (Deferred — ADR-R7.)
 
 ### Tier 2 — Per product (product team) — one monorepo each
 
 | Repo | Replaces |
 |---|---|
-| `rally` | `rally-api` + `rally-web` + `rally-infra` |
+| `rova` | was `rally-api` + `rally-web` + `rally-infra` |
 | `opshub` | `opshub-api` + `opshub-web` + `opshub-infra` |
 | `learning`, `knowledge-base`, … | born new on this structure |
 
@@ -55,16 +55,16 @@ The topology above is the **full target**. It is stable across the ECS→EKS mig
 
 | Repo | Create now (ECS phase) | Why / trigger to add |
 |---|---|---|
-| `qnsc-infra` | ✅ **now** | Landing zone + per-env VPC / ECS cluster / RDS |
-| `qnsc-tf-modules` | ✅ **now** | **Infra reuse engine** — `ecs-service`/`rds`/`network`/`cache`/`secrets`; every product's `infra/` calls these |
-| `qnsc-ci` *(= existing org `.github`)* | ✅ **now** | **Pipeline reuse engine** — one reusable `build→scan→sign→ecs-deploy` workflow; every product calls it |
-| `rally`, `opshub` (monorepos) | ✅ **now** | Consolidate old `*-api`/`*-web`/`*-infra`; `apps/`+`packages/`+`deploy/ecs/`+`infra/` |
+| `infra` | ✅ **now** | Landing zone + per-env VPC / ECS cluster / RDS |
+| `tf-modules` | ✅ **now** | **Infra reuse engine** — `ecs-service`/`rds`/`network`/`cache`/`secrets`; every product's `infra/` calls these |
+| `ci` *(= existing org `.github`)* | ✅ **now** | **Pipeline reuse engine** — one reusable `build→scan→sign→ecs-deploy` workflow; every product calls it |
+| `rova`, `opshub` (monorepos) | ✅ **now** | Consolidate old `*-api`/`*-web`/`*-infra`; `apps/`+`packages/`+`deploy/ecs/`+`infra/` |
 | `learning`, `knowledge-base` | when the product starts | Born on this structure (ECS Fargate) |
 | `qnsc-packages` | ❌ defer | Only when real code is shared **across** products (needs CodeArtifact publishing) |
 | `qnsc-gitops` | ❌ defer | Created **when the EKS trigger fires** — it is ArgoCD config, useless pre-K8s |
 | `ic-infra` (Zone A) | separate track | Isolated GovCloud/on-prem org — never in this tree |
 
-**Lean-but-right day-1 set: `qnsc-infra` + `qnsc-tf-modules` + `qnsc-ci`(existing `.github`) + one monorepo per live product.**
+**Lean-but-right day-1 set: `infra` + `tf-modules` + `ci`(existing `.github`) + one monorepo per live product.**
 
 ### How it expands without restructuring
 
@@ -77,7 +77,7 @@ The whole point — each future step is **additive**, never a reshuffle:
 | Real cross-product shared lib appears | Create `qnsc-packages` + CodeArtifact | +1 shared repo |
 | A service earns a dedicated team | Graduate it to its own repo (§3.1) | +1 repo, on Conway's-law boundary |
 | **EKS trigger fires** | Add `chart/` per product; create `qnsc-gitops` | +1 shared repo; **no product restructuring** |
-| Zone C (hospital AI) becomes real | New isolated med accounts + repos | separate zone, reuses `qnsc-tf-modules` |
+| Zone C (hospital AI) becomes real | New isolated med accounts + repos | separate zone, reuses `tf-modules` |
 
 Every arrow is "+1", never "reorganize." That is what makes this the scale-friendly enterprise setup: **start with 3 shared repos, grow one repo at a time, never migrate the layout.**
 
@@ -86,7 +86,7 @@ Every arrow is "+1", never "reorganize." That is what makes this the scale-frien
 ## 3. Per-product monorepo layout
 
 ```
-rally/
+rova/
 ├── apps/                    # deployable services — each builds its OWN image,
 │   │                        #   runs as its OWN ECS service now / Deployment + HPA on EKS later
 │   ├── api/                 # today: modular monolith
@@ -100,14 +100,14 @@ rally/
 │   └── ecs/                 #   ECS PHASE (now): task-def templates, service params
 │       (chart/ added here at the EKS phase: Helm chart, versioned WITH the code)
 ├── infra/                   # OpenTofu: product-OWNED resources (Aurora, queues, buckets, ECS service shell)
-│                            #   uses modules from qnsc-tf-modules
-├── .github/workflows/       # thin — calls reusable workflows from qnsc-ci
+│                            #   uses modules from tf-modules
+├── .github/workflows/       # thin — calls reusable workflows from ci
 └── README.md
 ```
 
 - **Path-filtered CI:** a change under `apps/api/` builds only the api image, etc.
 - **Atomic full-stack PRs:** an API contract change and its web consumer move in one PR.
-- **Product-owned cloud resources** (its database, queues, buckets, ECS service shell) live in `infra/` and are applied by CI with a least-privilege, per-product role. Shared/landing-zone infrastructure stays in `qnsc-infra`.
+- **Product-owned cloud resources** (its database, queues, buckets, ECS service shell) live in `infra/` and are applied by CI with a least-privilege, per-product role. Shared/landing-zone infrastructure stays in `infra`.
 - **Deploy descriptors are phase-dependent** (architecture §8/§13):
   - **ECS phase (now):** `deploy/ecs/` holds the **task-def template**; CI renders it, bumps the image tag, and `update-service` (or CodeDeploy blue/green). No separate GitOps repo needed.
   - **EKS phase (later):** add `chart/` (Helm templates, with the code); **env values + live image tag** move to `qnsc-gitops` and ArgoCD syncs — preserving config/code separation.
@@ -125,7 +125,7 @@ rally/
 
 ## 4. `qnsc-gitops` layout (ArgoCD config hub) — EKS phase
 
-> **Phase note:** This layout is the **EKS-phase** ArgoCD config hub. It is created **when the EKS trigger fires** (architecture §13.2) — not on day one. In the **ECS phase (now)**, GitOps/ArgoCD does not exist: reusable CI/CD lives in **`qnsc-ci`** (§2 Tier 1) and each product deploys via CI push (`deploy/ecs/` task-def → `update-service`). Stand `qnsc-gitops` up at the migration, then move per-product env values + image tags into it.
+> **Phase note:** This layout is the **EKS-phase** ArgoCD config hub. It is created **when the EKS trigger fires** (architecture §13.2) — not on day one. In the **ECS phase (now)**, GitOps/ArgoCD does not exist: reusable CI/CD lives in **`ci`** (§2 Tier 1) and each product deploys via CI push (`deploy/ecs/` task-def → `update-service`). Stand `qnsc-gitops` up at the migration, then move per-product env values + image tags into it.
 
 ```
 qnsc-gitops/
@@ -140,8 +140,8 @@ qnsc-gitops/
 │   └── qnsc-service/           # shared Helm base chart (the golden path)
 ├── applicationsets/            # generators that fan out products × envs → Applications
 └── products/
-    ├── rally/
-    │   ├── base/               # references rally/chart + qnsc-service base
+    ├── rova/
+    │   ├── base/               # references rova/chart + qnsc-service base
     │   └── envs/{dev,staging,prod}/values.yaml   # env values + image tag (CI bumps these)
     ├── opshub/
     └── learning/
@@ -159,8 +159,8 @@ Rally and opshub run in production on ECS today; their infra repos manage live s
 
 | Step | Action | Safety |
 |---|---|---|
-| **R0** | Create the new shared platform repos (`qnsc-infra`, `qnsc-tf-modules`, `qnsc-gitops`, `qnsc-ci`, `qnsc-infra-template`). | Additive — zero risk to prod |
-| **R1** | Create product monorepos (`rally`, `opshub`) by consolidating existing `*-api`/`*-web`/`*-infra` (preserve git history via subtree merges where useful). Build new products (`learning`, `knowledge-base`) here directly. | Old repos still live and serving |
+| **R0** | Create the new shared platform repos (`infra`, `tf-modules`, `qnsc-gitops`, `ci`, `infra-template`). | Additive — zero risk to prod |
+| **R1** | Create product monorepos (`rova`, `opshub`) by consolidating existing `*-api`/`*-web`/`*-infra` (preserve git history via subtree merges where useful). Build new products (`learning`, `knowledge-base`) here directly. | Old repos still live and serving |
 | **R2** | Migrate runtime ECS → EKS per architecture §13 (compute moves, data stays). `rally-infra`/`opshub-infra` remain **active** until that product is fully on EKS. | Never delete live-prod infra |
 | **R3** | Once a product is fully on EKS and stable, **archive** (read-only) the old `*-api`/`*-web`/`*-infra` repos. | History + audit preserved |
 | **R4** | Delete archived repos only much later, if ever — archived is free and keeps the audit trail. | Compliance-safe |
@@ -171,7 +171,7 @@ Rally and opshub run in production on ECS today; their infra repos manage live s
 
 ## 6. Adding a new product (the test of the setup)
 
-1. **GitHub "Use this template"** (or the `qnsc-ci` cookiecutter) scaffolds the new `product` monorepo — `apps/`, `packages/`, `chart/`, `infra/` wired to shared modules, `.github/workflows/` wired to `qnsc-ci`.
+1. **GitHub "Use this template"** (or the `ci` cookiecutter) scaffolds the new `product` monorepo — `apps/`, `packages/`, `chart/`, `infra/` wired to shared modules, `.github/workflows/` wired to `ci`.
 2. Add one ApplicationSet entry + `products/<name>/envs/*` values in `qnsc-gitops`.
 3. ArgoCD creates the namespace and syncs.
 
@@ -186,9 +186,9 @@ Near-zero marginal effort — the platform's core promise.
 | ADR-R1 | Product monorepo (api+web+worker+chart+infra per product) | Atomic full-stack PRs, one owner, ~6 repos not ~18 | Accepted |
 | ADR-R2 | Central `qnsc-gitops` config hub (CODEOWNERS per product dir) | One pane of glass, curated standards; split later if needed | Accepted |
 | ADR-R3 | Separate config from code (chart with code; image tags/values in gitops) | GitOps best practice; clean deploy audit | Accepted |
-| ADR-R4 | Move reusable CI out of `qnsc-gitops` into `qnsc-ci`/`.github` | `qnsc-gitops` becomes true GitOps config | Accepted |
+| ADR-R4 | Move reusable CI out of `qnsc-gitops` into `ci`/`.github` | `qnsc-gitops` becomes true GitOps config | Accepted |
 | ADR-R5 | Reject full monorepo and reject 3-repos-per-product | Compliance blast-radius / tooling weight; vs repo sprawl / no atomicity | Accepted |
 | ADR-R6 | Archive (never delete-first) repos that managed prod/regulated infra | Audit trail = compliance requirement | Accepted |
-| ADR-R7 | No dedicated template repo — use GitHub template feature / `qnsc-ci` cookiecutter; revisit a scaffolder at product #3+ | Avoid premature repo; YAGNI | Accepted |
+| ADR-R7 | No dedicated template repo — use GitHub template feature / `ci` cookiecutter; revisit a scaffolder at product #3+ | Avoid premature repo; YAGNI | Accepted |
 | ADR-R8 | Product monorepo scales to microservices via `apps/<service>/` + `packages/`; split to own repo only on team-split | Monorepo = code layout, not runtime; defers package-publishing overhead | Accepted |
-| ADR-R9 | Deploy layer is **phase-aware**: ECS phase uses `qnsc-ci` + `deploy/ecs/`; EKS phase adds `chart/` + `qnsc-gitops` at migration. Same repo topology both phases | Matches ECS-now/EKS-when-triggered (architecture §8/§13); `qnsc-gitops` not created until the EKS trigger fires | Accepted 2026-07-01 |
+| ADR-R9 | Deploy layer is **phase-aware**: ECS phase uses `ci` + `deploy/ecs/`; EKS phase adds `chart/` + `qnsc-gitops` at migration. Same repo topology both phases | Matches ECS-now/EKS-when-triggered (architecture §8/§13); `qnsc-gitops` not created until the EKS trigger fires | Accepted 2026-07-01 |

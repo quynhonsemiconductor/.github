@@ -6,7 +6,7 @@ QNSC (Quy Nhon Semiconductor) is committed to providing a respectful,
 harassment-free environment for everyone who contributes to or interacts
 with our repositories — employees, contractors, and approved partners alike.
 
-This applies across all QNSC-VN organization repositories, issues, pull
+This applies across all quynhonsemiconductor organization repositories, issues, pull
 requests, code review, and any other project space (chat, email, meetings)
 tied to this work.
 
@@ -47,7 +47,7 @@ in [`SECURITY.md`](./SECURITY.md) instead — do not mix the two.
 
 ## Scope
 
-This Code of Conduct applies to all QNSC-VN GitHub repositories and any
+This Code of Conduct applies to all quynhonsemiconductor GitHub repositories and any
 associated project communication channels, whether the interaction happens
 during work hours or not, whenever it relates to QNSC work.
 

@@ -1,7 +1,7 @@
 # Security Policy
 
 QNSC (Quy Nhon Semiconductor) takes the security of its software and infrastructure
-seriously. This policy applies to all repositories in the **QNSC-VN** organization.
+seriously. This policy applies to all repositories in the **quynhonsemiconductor** organization.
 
 ## Reporting a Vulnerability
 
@@ -31,7 +31,7 @@ When reporting, please include as much of the following as possible:
 ## Scope
 
 This policy covers the internal platform code, infrastructure, and tooling published under
-the QNSC-VN organization. Please act in good faith, avoid privacy violations and service
+the quynhonsemiconductor organization. Please act in good faith, avoid privacy violations and service
 disruption, and only interact with accounts and data you own or have explicit permission
 to test.
 

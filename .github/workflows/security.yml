@@ -2,7 +2,7 @@
 # Security · Scan — committed-secret gate.
 #
 # This repo is org-wide config/docs (community health defaults, CODEOWNERS
-# template, profile README) — no app code or IaC, so the shared QNSC-VN/qnsc-ci
+# template, profile README) — no app code or IaC, so the shared quynhonsemiconductor/ci
 # security suite (Semgrep/Trivy, app-oriented) and Checkov (Terraform-oriented)
 # don't apply. Gitleaks alone still matters: this repo is public, so a
 # committed secret here is exposed org-wide immediately.
@@ -39,12 +39,12 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: QNSC-VN/qnsc-ci/actions/scan-secrets@v1.9.0
+      - uses: quynhonsemiconductor/ci/actions/scan-secrets@v1.9.0
 
   actions-security:
     permissions:
       contents: read
       security-events: write
-    uses: QNSC-VN/qnsc-ci/.github/workflows/actions-security.yml@v1
+    uses: quynhonsemiconductor/ci/.github/workflows/actions-security.yml@v1
     with:
       blocking: true

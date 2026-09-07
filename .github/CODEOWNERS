@@ -1,4 +1,4 @@
-# CODEOWNERS — QNSC-VN org default template
+# CODEOWNERS — organization default template
 #
 # This file lives in the org-wide `.github` repo. GitHub only reads a
 # CODEOWNERS file from within the repo it applies to, so this copy is the
@@ -8,8 +8,8 @@
 # Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
 
 # Default owners for everything, unless a later, more specific pattern matches.
-* @QNSC-VN/platform-infra
+* @quynhonsemiconductor/platform-infra
 
 # Security-sensitive files always require a platform-infra review.
-SECURITY.md          @QNSC-VN/platform-infra
-/.github/CODEOWNERS  @QNSC-VN/platform-infra
+SECURITY.md          @quynhonsemiconductor/platform-infra
+/.github/CODEOWNERS  @quynhonsemiconductor/platform-infra
