@@ -1,5 +1,29 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Org-wide Renovate preset. Consumed by a one-line renovate.json in each repo:",
+    "  { \"extends\": [\"local>quynhonsemiconductor/.github:renovate-config\"] }",
+    "",
+    "PRIVATE PACKAGE ACCESS IS NOT CONFIGURED HERE, and looking for it in this file",
+    "is the obvious mistake. Renovate reads @quynhonsemiconductor/* from GitHub",
+    "Packages, which is a private scope its installation token does not cover — it",
+    "reported 'no-result' for all five packages and silently proposed no updates",
+    "for them. The fix is a HOST RULE bound in the Mend Developer Portal UI",
+    "(Settings > Credentials > Host Rules): npm.pkg.github.com, hostType npm,",
+    "using the GITHUB_PACKAGES_READ_TOKEN secret — a read:packages classic PAT",
+    "belonging to the qnsc-bot machine account.",
+    "",
+    "A hostRules block WAS tried here first, referencing the secret as",
+    "{{ secrets.GITHUB_PACKAGES_READ_TOKEN }}. It did not resolve on the hosted",
+    "app — app.renovatebot.com/encrypt now states config-based secrets are",
+    "superseded by UI-managed ones. It is removed rather than left in place,",
+    "because config that looks load-bearing and is not costs the next reader more",
+    "than no config at all.",
+    "",
+    "Symptom if the token lapses: Dependency Lookup Warnings reappear on the Mend",
+    "dashboard, no PRs are opened for the five first-party packages, and nothing",
+    "fails."
+  ],
   "extends": [
     "config:recommended",
     ":semanticCommits",
@@ -88,13 +112,5 @@
   "prConcurrentLimit": 5,
   "schedule": [
     "before 9am on monday"
-  ],
-  "hostRules": [
-    {
-      "description": "Read the org's own packages from GitHub Packages. Without this Renovate reports 'no-result' for every @quynhonsemiconductor/* dependency and silently proposes no updates for them — the five shared platform packages every product consumes. Confirmed from the Mend dashboard's Dependency Lookup Warnings.\n\nThe token is a classic PAT with read:packages ONLY, uploaded as an App Secret in the Mend Developer Portal rather than encrypted into this file: config-based encryption is no longer supported for Mend-hosted apps. The value never enters this repository, only the name does.",
-      "matchHost": "npm.pkg.github.com",
-      "hostType": "npm",
-      "token": "{{ secrets.GITHUB_PACKAGES_READ_TOKEN }}"
-    }
   ]
 }
