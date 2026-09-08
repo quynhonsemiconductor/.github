@@ -7,6 +7,18 @@
   ],
   "packageRules": [
     {
+      "description": "First-party packages: their own group, never auto-merged. They are published from app-platform by this org and released together, so a bump to them is a platform decision — burying one in a group with a third-party patch loses that signal. Majors still separate via the rule below.",
+      "matchPackageNames": [
+        "/^@quynhonsemiconductor\\//"
+      ],
+      "groupName": "qnsc platform packages",
+      "automerge": false,
+      "labels": [
+        "dependencies",
+        "platform"
+      ]
+    },
+    {
       "description": "Group non-major npm updates into one PR per dependency type, mirroring the Dependabot policy this replaces. config:recommended separates majors already but does NOT group anything, so without this a handover from Dependabot trades two grouped PRs a week for one PR per dependency.",
       "matchManagers": [
         "npm"
@@ -76,5 +88,13 @@
   "prConcurrentLimit": 5,
   "schedule": [
     "before 9am on monday"
+  ],
+  "hostRules": [
+    {
+      "description": "Read the org's own packages from GitHub Packages. Without this Renovate reports 'no-result' for every @quynhonsemiconductor/* dependency and silently proposes no updates for them — the five shared platform packages every product consumes. Confirmed from the Mend dashboard's Dependency Lookup Warnings.\n\nThe token is a classic PAT with read:packages ONLY, uploaded as an App Secret in the Mend Developer Portal rather than encrypted into this file: config-based encryption is no longer supported for Mend-hosted apps. The value never enters this repository, only the name does.",
+      "matchHost": "npm.pkg.github.com",
+      "hostType": "npm",
+      "token": "{{ secrets.GITHUB_PACKAGES_READ_TOKEN }}"
+    }
   ]
 }
