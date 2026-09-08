@@ -1,0 +1,65 @@
+# =============================================================================
+# This repo holds renovate-config.json, the preset EVERY repo in the org
+# extends as `local>quynhonsemiconductor/.github:renovate-config`. A JSON
+# syntax error or an unknown option there does not fail loudly — Renovate
+# errors on each consumer repo instead, so the blast radius is org-wide and
+# the signal appears everywhere except here.
+#
+# Nothing validated it until now. The preset was edited by hand twice on
+# 2026-09-08 (rule ordering, then a timezone) with no gate behind either.
+#
+# WHAT THIS CATCHES, and it is worth being exact rather than assuming more:
+# JSON syntax errors, unknown/invalid configuration options, and — via
+# --strict — warnings and pending config migrations.
+#
+# WHAT IT DOES NOT CATCH: invalid enum VALUES inside packageRules. A bogus
+# `matchUpdateTypes: ["not-a-real-type"]` validates clean; measured, not
+# assumed. Nor does it catch a rule that is valid but wrong, which is how the
+# first-party group ended up overridden by a later rule (see the preset's own
+# `THIS RULE MUST STAY LAST` note).
+#
+# --no-global is load-bearing. Passing a file as an argument makes the
+# validator treat it as SELF-HOSTED GLOBAL config, which is a different and
+# weaker schema — it reports "Validating ... as global config" and accepts
+# repo-level options it should be checking. With the flag it reports
+# "as repo config", which is what a preset actually is.
+# =============================================================================
+name: Config · Validate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - renovate-config.json
+      - .github/workflows/config-ci.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - renovate-config.json
+      - .github/workflows/config-ci.yml
+
+concurrency:
+  group: config-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  renovate-preset:
+    name: Renovate preset
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      # Version-pinned so a Renovate release cannot change what this gate means
+      # without a visible bump. Renovate itself keeps it current.
+      - name: Validate renovate-config.json
+        run: npx --yes --package renovate@44.69.9 -- renovate-config-validator --no-global --strict renovate-config.json
