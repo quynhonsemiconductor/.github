@@ -31,18 +31,6 @@
   ],
   "packageRules": [
     {
-      "description": "First-party packages: their own group, never auto-merged. They are published from app-platform by this org and released together, so a bump to them is a platform decision — burying one in a group with a third-party patch loses that signal. Majors still separate via the rule below.",
-      "matchPackageNames": [
-        "/^@quynhonsemiconductor\\//"
-      ],
-      "groupName": "qnsc platform packages",
-      "automerge": false,
-      "labels": [
-        "dependencies",
-        "platform"
-      ]
-    },
-    {
       "description": "Group non-major npm updates into one PR per dependency type, mirroring the Dependabot policy this replaces. config:recommended separates majors already but does NOT group anything, so without this a handover from Dependabot trades two grouped PRs a week for one PR per dependency.",
       "matchManagers": [
         "npm"
@@ -107,6 +95,18 @@
         "patch"
       ],
       "automerge": true
+    },
+    {
+      "description": "First-party packages: their own group, never auto-merged. They are published from app-platform by this org and released together, so a bump to them is a platform decision — burying one in a group with a third-party patch loses that signal. THIS RULE MUST STAY LAST. Renovate applies packageRules in order and a later match overwrites an earlier one field by field. While this rule sat FIRST, the generic 'npm production (non-major)' rule above matched the same packages and overwrote its groupName, so @quynhonsemiconductor/identity and platform-cache were both proposed inside a 46-package third-party group in rova and opshub — the exact outcome this rule exists to prevent. It was invisible because the group PR is still opened and still green; only the dashboard's package list shows where they ended up.",
+      "matchPackageNames": [
+        "/^@quynhonsemiconductor\\//"
+      ],
+      "groupName": "qnsc platform packages",
+      "automerge": false,
+      "labels": [
+        "dependencies",
+        "platform"
+      ]
     }
   ],
   "prConcurrentLimit": 5,
