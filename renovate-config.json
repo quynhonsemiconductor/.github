@@ -153,14 +153,7 @@
       ]
     },
     {
-      "description": "Never auto-merge the shared CI reusables: they carry the required-check names, and a bump is a decision. A group automerges only when EVERY update in it does, so a PR that contains a shared CI bump is left for a person.",
-      "matchDepNames": [
-        "/^quynhonsemiconductor\\/ci/"
-      ],
-      "automerge": false
-    },
-    {
-      "description": "Auto-merge non-major dev dependencies and digest pins once required checks are green. Majors are excluded by matchUpdateTypes, so this cannot override the major rule above. See the note at the top of this file about what actually has to be true for an automerge to land under main-protection.",
+      "description": "Auto-merge non-major dev dependencies and digest pins once required checks are green. Majors are excluded by matchUpdateTypes, so this cannot override the major rule above. See the note at the top of this file about what actually has to be true for an automerge to land under main-protection. minimumReleaseAge 3 days: dev dependencies (vite, TypeScript, bundlers) are compiled into the web bundle, so a hijacked patch release would take exactly this path; a few days is the window in which the registry usually yanks one.",
       "matchDepTypes": [
         "devDependencies"
       ],
@@ -168,14 +161,23 @@
         "minor",
         "patch"
       ],
-      "automerge": true
+      "automerge": true,
+      "minimumReleaseAge": "3 days"
     },
     {
-      "description": "Auto-merge digest pins (GitHub Actions SHAs, Docker image digests) once required checks are green.",
+      "description": "Auto-merge digest pins (GitHub Actions SHAs, Docker image digests) once required checks are green. minimumReleaseAge 3 days for the same reason: a hijacked digest or tag is the supply-chain path.",
       "matchUpdateTypes": [
         "digest"
       ],
-      "automerge": true
+      "automerge": true,
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "Never auto-merge the shared CI reusables: they carry the required-check names, and a bump is a decision. A group automerges only when EVERY update in it does, so a PR that contains a shared CI bump is left for a person. DECLARED AFTER the automerge rules on purpose: Renovate applies packageRules in order and a later match overwrites field by field, so this has to come last among them to win for a shared-CI digest (which the digest rule would otherwise automerge).",
+      "matchDepNames": [
+        "/^quynhonsemiconductor\\/ci/"
+      ],
+      "automerge": false
     },
     {
       "description": "First-party packages: their own group, never auto-merged. They are published from app-platform by this org and released together, so a bump to them is a platform decision \u2014 burying one in a group with a third-party patch loses that signal. THIS RULE MUST STAY LAST. Renovate applies packageRules in order and a later match overwrites an earlier one field by field. While this rule sat FIRST, the generic 'npm production (non-major)' rule above matched the same packages and overwrote its groupName, so @quynhonsemiconductor/identity and platform-cache were both proposed inside a 46-package third-party group in rova and opshub \u2014 the exact outcome this rule exists to prevent. It was invisible because the group PR is still opened and still green; only the dashboard's package list shows where they ended up.",
