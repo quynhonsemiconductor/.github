@@ -22,7 +22,24 @@
     "",
     "Symptom if the token lapses: Dependency Lookup Warnings reappear on the Mend",
     "dashboard, no PRs are opened for the five first-party packages, and nothing",
-    "fails."
+    "fails.",
+    "",
+    "REBASING IS DELIBERATELY LAZY (rebaseWhen=conflicted, updateNotScheduled=false).",
+    "main-protection requires branches to be up to date, and Renovate's default rebaseWhen=auto",
+    "reads that as 'rebase whenever behind', while updateNotScheduled defaults to true, which lets",
+    "those rebases happen OUTSIDE the Monday schedule. Together: every push to main re-pushed every",
+    "open Renovate branch and re-ran its full CI. Measured 2-16 Oct on rova: 1,729 of 3,116 workflow",
+    "runs were Renovate's, from 8 branches, most started within 15 minutes of a push to main.",
+    "A Renovate branch now updates only when it conflicts. The merge tooling brings a branch up to",
+    "date at merge time, which is what the strict policy needs.",
+    "",
+    "AUTOMERGE HAS TWO PRECONDITIONS THIS FILE CANNOT SET. (1) The Renovate app must be allowed to",
+    "merge under main-protection: it requires one approving code-owner review and the only bypass",
+    "actor is the Admin role, so today no Renovate PR has ever been merged by the bot (the last 9 on",
+    "rova were all merged by a person). (2) With rebaseWhen=conflicted and a strict up-to-date rule,",
+    "a PR that falls behind main without conflicting is not auto-mergeable until someone updates it",
+    "(documented Renovate behaviour). Until (1) is decided, the automerge rules are inert and",
+    "harmless: the PR still opens, still runs CI, and is merged by hand."
   ],
   "extends": [
     "config:recommended",
@@ -125,6 +142,42 @@
       "commitMessageTopic": "shared module {{depName}}"
     },
     {
+      "description": "One PR for every GitHub Actions update (pins, digests, and the shared CI reusables), instead of one PR per action. Eight Renovate branches were each rebased on every push to main; a single group is one branch. Declared after the 'shared CI' rule on purpose: a later match overwrites groupName, so shared CI joins this group rather than keeping its own.",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "groupName": "github actions",
+      "labels": [
+        "dependencies",
+        "ci"
+      ]
+    },
+    {
+      "description": "Never auto-merge the shared CI reusables: they carry the required-check names, and a bump is a decision. A group automerges only when EVERY update in it does, so a PR that contains a shared CI bump is left for a person.",
+      "matchDepNames": [
+        "/^quynhonsemiconductor\\/ci/"
+      ],
+      "automerge": false
+    },
+    {
+      "description": "Auto-merge non-major dev dependencies and digest pins once required checks are green. Majors are excluded by matchUpdateTypes, so this cannot override the major rule above. See the note at the top of this file about what actually has to be true for an automerge to land under main-protection.",
+      "matchDepTypes": [
+        "devDependencies"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "automerge": true
+    },
+    {
+      "description": "Auto-merge digest pins (GitHub Actions SHAs, Docker image digests) once required checks are green.",
+      "matchUpdateTypes": [
+        "digest"
+      ],
+      "automerge": true
+    },
+    {
       "description": "First-party packages: their own group, never auto-merged. They are published from app-platform by this org and released together, so a bump to them is a platform decision \u2014 burying one in a group with a third-party patch loses that signal. THIS RULE MUST STAY LAST. Renovate applies packageRules in order and a later match overwrites an earlier one field by field. While this rule sat FIRST, the generic 'npm production (non-major)' rule above matched the same packages and overwrote its groupName, so @quynhonsemiconductor/identity and platform-cache were both proposed inside a 46-package third-party group in rova and opshub \u2014 the exact outcome this rule exists to prevent. It was invisible because the group PR is still opened and still green; only the dashboard's package list shows where they ended up.",
       "matchPackageNames": [
         "/^@quynhonsemiconductor\\//"
@@ -141,5 +194,7 @@
   "timezone": "Asia/Ho_Chi_Minh",
   "schedule": [
     "before 9am on monday"
-  ]
+  ],
+  "rebaseWhen": "conflicted",
+  "updateNotScheduled": false
 }
