@@ -104,14 +104,15 @@
       ]
     },
     {
-      "description": "Auto-merge patch bumps of pinned GitHub Actions once checks pass",
+      "description": "Auto-merge patch bumps of pinned GitHub Actions once checks pass minimumReleaseAge 3 days, like the other automerge rules: a hijacked action release is the same supply-chain path.",
       "matchManagers": [
         "github-actions"
       ],
       "matchUpdateTypes": [
         "patch"
       ],
-      "automerge": true
+      "automerge": true,
+      "minimumReleaseAge": "3 days"
     },
     {
       "description": [
