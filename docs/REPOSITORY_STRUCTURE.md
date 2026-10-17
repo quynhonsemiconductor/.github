@@ -1,194 +1,116 @@
 # QNSC Repository Structure
 
-> **Status:** Decided 2026-06-30; deploy path made phase-aware 2026-07-01. Companion to [PLATFORM_ARCHITECTURE.md](./PLATFORM_ARCHITECTURE.md) and [TECH_STACK.md](./TECH_STACK.md).
-> **Audience:** Engineering, platform/DevOps.
-> **Owner:** Platform team.
-> **Context:** Greenfield restructure. The current repos (`qnsc-*`, `rally-*`, `opshub-*`, …) are replaced by the topology below via a **safe, additive migration** — see [§5](#5-fresh-start-migration-archive-never-delete-first).
-> **Phase note:** The repo topology is the **same in both compute phases**. Only the deploy layer differs: **ECS phase (now)** deploys via `ci` + each product's `deploy/ecs/`; **EKS phase (later)** adds `chart/` per product and the `qnsc-gitops` ArgoCD hub. See [§3](#3-per-product-monorepo-layout) and [§4](#4-qnsc-gitops-layout-argocd-config-hub--eks-phase).
+Which repository owns what, how code is laid out inside a product, and how shared code reaches the products.
+For how the pieces behave at runtime see [PLATFORM_ARCHITECTURE.md](./PLATFORM_ARCHITECTURE.md); for the technology see
+[TECH_STACK.md](./TECH_STACK.md).
 
----
+## Principles
 
-## 1. Principles
+1. **One monorepo per product.** A product's API, worker, web app, database schema, infrastructure and runbooks live
+   together, so one pull request can change a feature end to end and one `git log` explains it.
+2. **Shared code is a versioned repository, never a copy.** Application packages, CI workflows and infrastructure
+   modules each have one home, are released independently, and are consumed by version. A product that needs a fix in
+   shared code changes the shared repository and bumps the version.
+3. **Share the code, not the runtime.** Products depend on shared packages at build time. Each product keeps its own
+   database, cache, services, secrets and deployment, so one product's outage or deploy cannot take another's down.
+4. **Docs live next to what they describe.** Alert runbooks, architecture decisions and setup instructions are in the
+   repository that owns the behaviour. This repository holds only what applies to the whole organisation.
 
-1. **Separate config from code.** Application repos build and push images; a dedicated GitOps config repo holds *what is deployed*. CI bumps an image tag in the config repo → ArgoCD syncs. Application CI never retriggers on a deploy.
-2. **Repo boundaries follow ownership boundaries** (Conway's law). The platform team owns shared repos; each product team owns its product repo.
-3. **One golden path.** New products are scaffolded from a template and wired to shared modules and reusable CI — adding product #7 is near-zero effort.
-4. **Archive, never delete** repos that held production or regulated infrastructure — audit trail is a compliance requirement.
+## The repositories
 
----
+All are in the `quynhonsemiconductor` organisation. Private repositories (internal tooling, design documents) are
+not listed here.
 
-## 2. Topology (3 tiers)
+### Products
 
-### Tier 1 — Shared platform (platform team)
+| Repository | What it is |
+| :--------- | :--------- |
+| [`rova`](https://github.com/quynhonsemiconductor/rova) | Single-tenant project and portfolio management (work items, iterations, releases, test cases, reporting). NestJS API and worker, React SPA |
+| [`opshub`](https://github.com/quynhonsemiconductor/opshub) | Internal IT and HR operations: assets, access requests, compliance, workforce, contracts, ISMS and QMS records. NestJS API and worker, React SPA |
+| [`qnsc-kb-backend`](https://github.com/quynhonsemiconductor/qnsc-kb-backend) | Knowledge Base API and workers: FastAPI, Celery, PostgreSQL with pgvector for hybrid retrieval |
+| [`qnsc-kb-frontend`](https://github.com/quynhonsemiconductor/qnsc-kb-frontend) | The Knowledge Base web app (React, Vite) |
+| [`qnsc-landing`](https://github.com/quynhonsemiconductor/qnsc-landing) | The company marketing site (Astro, English and Vietnamese), on Cloudflare Pages |
 
-| Repo | Purpose |
-|---|---|
-| `infra` | Live OpenTofu: AWS Organization, accounts, landing zone, per-env **ECS clusters** now (+ **EKS clusters** at the EKS phase), shared networking |
-| `tf-modules` | Reusable OpenTofu modules (**ecs-service**, network, rds/aurora, cache, secrets now; **eks** added at the EKS phase) |
-| `ci` *(or org `.github`)* | Reusable CI workflows + composite actions (build/test/scan/sign/push + **ECS push-deploy** now). **The active CD home in the ECS phase.** |
-| `qnsc-gitops` | **ArgoCD config hub** *(EKS phase — created at migration, §4)* — app-of-apps, ApplicationSets, platform add-ons, cluster/env registry, shared `qnsc-service` Helm base chart, per-product env values + live image tags |
-| `qnsc-packages` *(only if needed)* | Shared libraries published to CodeArtifact — **only** for code shared *across products*; code shared *within* a product lives in that product's `packages/` |
+### Shared platform
 
-> **No dedicated template repo.** Scaffolding for new products uses GitHub's native **template repository** feature on the first clean product repo, or a `templates/` cookiecutter in `ci`. Revisit a dedicated scaffolder/CLI only at product #3+. (Deferred — ADR-R7.)
+| Repository | What it is | How products consume it |
+| :--------- | :--------- | :---------------------- |
+| [`app-platform`](https://github.com/quynhonsemiconductor/app-platform) | Shared application packages: `identity`, `observability`, `platform-runtime`, `platform-http`, `platform-cache`, `platform-db`, `platform-jobs`, `platform-mail` | npm packages on GitHub Packages, one tag per package (`<package>-vX.Y.Z`); Renovate opens one grouped PR per product |
+| [`ci`](https://github.com/quynhonsemiconductor/ci) | Reusable GitHub Actions workflows and composite actions: build, scan, attest, deploy, release, the aggregate "required" gates | `uses: quynhonsemiconductor/ci/...@v1` |
+| [`tf-modules`](https://github.com/quynhonsemiconductor/tf-modules) | Versioned OpenTofu modules: network, RDS, cache, ECS service, secrets, Cloudflare Pages, tunnel, edge rules, observability agents and alert rules | `?ref=<module>-vX.Y.Z` |
+| [`infra`](https://github.com/quynhonsemiconductor/infra) | Platform-level infrastructure: human access to AWS, the security baseline, shared network, Cloudflare zone governance, the Grafana Cloud stack, shared object storage, remote state | Read through remote state; products do not edit it |
+| [`infra-template`](https://github.com/quynhonsemiconductor/infra-template) | The starting skeleton for a new product's infrastructure repository | Cloned once |
+| [`gitops`](https://github.com/quynhonsemiconductor/gitops) | Desired state for the Kubernetes estate: one Helm chart, one values file per product and environment, ArgoCD applications | CI bumps image tags here; see [Direction](./TECH_STACK.md#direction) |
+| [`.github`](https://github.com/quynhonsemiconductor/.github) | This repository: the organisation profile, issue and PR templates, `CONTRIBUTING`, `SECURITY`, the Renovate preset, these docs | Inherited automatically |
 
-### Tier 2 — Per product (product team) — one monorepo each
+### Other engineering projects
 
-| Repo | Replaces |
-|---|---|
-| `rova` | was `rally-api` + `rally-web` + `rally-infra` |
-| `opshub` | `opshub-api` + `opshub-web` + `opshub-infra` |
-| `learning`, `knowledge-base`, … | born new on this structure |
+| Repository | What it is |
+| :--------- | :--------- |
+| [`chipgraph`](https://github.com/quynhonsemiconductor/chipgraph) | An AI agent system for chip design: a chip project as a build graph of specs, RTL and tests, with deterministic EDA checks and human approval gates. Pre-alpha |
+| [`mcp-tools`](https://github.com/quynhonsemiconductor/mcp-tools) | A Model Context Protocol server giving AI assistants access to GitHub, Microsoft 365, Rova and a browser, with each person's own permissions |
+| [`vlsi_deep_training`](https://github.com/quynhonsemiconductor/vlsi_deep_training) | QSOC, an RV32IMC microcontroller designed block by block as a deep-training project |
 
-### Tier 3 — Zone A (IC / ITAR) — isolated
+### Forks and archived
 
-`ic-infra` + Ansible playbooks, in the **separate GovCloud/on-prem organization**. Not in the commercial org, not federated, not in this tree.
+| Repository | Status |
+| :--------- | :----- |
+| [`code-review`](https://github.com/quynhonsemiconductor/code-review) | **Fork** of an open-source code-review tool, pinned by commit; the pull-request AI review check in `ci` runs it |
+| [`VLSIT_RTL_Generator_AI_Model`](https://github.com/quynhonsemiconductor/VLSIT_RTL_Generator_AI_Model) | **Fork** of a third-party RTL generation project |
+| `solodesk` | **Archived** (retired 2026-10-10); private, read-only history |
 
-**Net count:** ~5–6 shared + 1 per product = **~11–12 commercial repos** (vs ~22 under the old 3-per-product pattern), plus the isolated Zone A repos. **In the ECS phase today the shared tier is only 3** (`qnsc-gitops` and `qnsc-packages` defer) — see §2.1.
+## Inside a product repository
 
----
-
-## 2.1 Day-1 repo set (ECS phase) — create now vs. defer
-
-The topology above is the **full target**. It is stable across the ECS→EKS migration — **you never restructure**; you only add `chart/` to products and stand up `qnsc-gitops` when the EKS trigger fires (architecture §13.2). So set up the lean ECS-phase set now and let it grow.
-
-**The rule: repo boundaries follow ownership + compliance, not the runtime.** That is why the same topology serves ECS today and EKS later.
-
-| Repo | Create now (ECS phase) | Why / trigger to add |
-|---|---|---|
-| `infra` | ✅ **now** | Landing zone + per-env VPC / ECS cluster / RDS |
-| `tf-modules` | ✅ **now** | **Infra reuse engine** — `ecs-service`/`rds`/`network`/`cache`/`secrets`; every product's `infra/` calls these |
-| `ci` *(= existing org `.github`)* | ✅ **now** | **Pipeline reuse engine** — one reusable `build→scan→sign→ecs-deploy` workflow; every product calls it |
-| `rova`, `opshub` (monorepos) | ✅ **now** | Consolidate old `*-api`/`*-web`/`*-infra`; `apps/`+`packages/`+`deploy/ecs/`+`infra/` |
-| `learning`, `knowledge-base` | when the product starts | Born on this structure (ECS Fargate) |
-| `qnsc-packages` | ❌ defer | Only when real code is shared **across** products (needs CodeArtifact publishing) |
-| `qnsc-gitops` | ❌ defer | Created **when the EKS trigger fires** — it is ArgoCD config, useless pre-K8s |
-| `ic-infra` (Zone A) | separate track | Isolated GovCloud/on-prem org — never in this tree |
-
-**Lean-but-right day-1 set: `infra` + `tf-modules` + `ci`(existing `.github`) + one monorepo per live product.**
-
-### How it expands without restructuring
-
-The whole point — each future step is **additive**, never a reshuffle:
-
-| Future need | Action | Repo change |
-|---|---|---|
-| Add product #3+ | Clone the template monorepo | +1 product repo; wire 2 module calls + 1 workflow call |
-| A service outgrows the monolith | Add `apps/<service>/` (§3.1) | none — new image/service, same repo |
-| Real cross-product shared lib appears | Create `qnsc-packages` + CodeArtifact | +1 shared repo |
-| A service earns a dedicated team | Graduate it to its own repo (§3.1) | +1 repo, on Conway's-law boundary |
-| **EKS trigger fires** | Add `chart/` per product; create `qnsc-gitops` | +1 shared repo; **no product restructuring** |
-| Zone C (hospital AI) becomes real | New isolated med accounts + repos | separate zone, reuses `tf-modules` |
-
-Every arrow is "+1", never "reorganize." That is what makes this the scale-friendly enterprise setup: **start with 3 shared repos, grow one repo at a time, never migrate the layout.**
-
----
-
-## 3. Per-product monorepo layout
+`opshub` and `rova` share one layout (the Knowledge Base backend is a Python project with the same top-level ideas):
 
 ```
-rova/
-├── apps/                    # deployable services — each builds its OWN image,
-│   │                        #   runs as its OWN ECS service now / Deployment + HPA on EKS later
-│   ├── api/                 # today: modular monolith
-│   ├── web/                 # frontend
-│   └── worker/              # background jobs
-│        ↓ as it decomposes, just add more (no restructuring):
-│   ├── auth/  billing/  catalog/  notifications/  search/ ...
-├── packages/                # shared libs ACROSS this product's services
-│                            #   (types, auth, db models) — imported directly, not published
-├── deploy/                  # deploy descriptors
-│   └── ecs/                 #   ECS PHASE (now): task-def templates, service params
-│       (chart/ added here at the EKS phase: Helm chart, versioned WITH the code)
-├── infra/                   # OpenTofu: product-OWNED resources (Aurora, queues, buckets, ECS service shell)
-│                            #   uses modules from tf-modules
-├── .github/workflows/       # thin — calls reusable workflows from ci
-└── README.md
+<product>/
+├── apps/
+│   ├── api/            NestJS HTTP API (one process)
+│   ├── worker/         NestJS background process: relays, scheduled jobs (no HTTP)
+│   └── web/            React + Vite SPA, and apps/web/functions: the Cloudflare Pages Function proxy
+├── libs/               shared backend code: platform glue and one module per domain area
+├── db/                 Drizzle schema, SQL migrations, seeds
+├── infra/
+│   ├── live/{_shared,develop,prod}/    the values for each environment
+│   └── modules/stack/                  the one composition module both environments call
+├── docs/runbooks/      operational runbooks; docs/runbooks/alerts/ one page per alert
+├── test/               cross-cutting specs and end-to-end tests
+├── .github/workflows/  thin callers of the reusable workflows in `ci`
+├── Dockerfile          multi-target: api, worker, migrator
+└── docker-compose.dev.yml    the local stack (Postgres, Valkey, LocalStack, an OTel collector)
 ```
 
-- **Path-filtered CI:** a change under `apps/api/` builds only the api image, etc.
-- **Atomic full-stack PRs:** an API contract change and its web consumer move in one PR.
-- **Product-owned cloud resources** (its database, queues, buckets, ECS service shell) live in `infra/` and are applied by CI with a least-privilege, per-product role. Shared/landing-zone infrastructure stays in `infra`.
-- **Deploy descriptors are phase-dependent** (architecture §8/§13):
-  - **ECS phase (now):** `deploy/ecs/` holds the **task-def template**; CI renders it, bumps the image tag, and `update-service` (or CodeDeploy blue/green). No separate GitOps repo needed.
-  - **EKS phase (later):** add `chart/` (Helm templates, with the code); **env values + live image tag** move to `qnsc-gitops` and ArgoCD syncs — preserving config/code separation.
+- `infra/modules/stack` is why `develop` and `production` cannot drift structurally: both call it, and the files under
+  `infra/live/<env>` hold only values.
+- The backend is the repository root package; `apps/web` is the one pnpm workspace member.
+- Every product README says how to run it from a clean clone. OpsHub's and Rova's **Local stack** sections need only
+  `cp .env.example .env` plus a few commands, and their CI runs those same commands on every pull request (the
+  `local quickstart` job), so the instructions cannot rot.
 
-### 3.1 Scaling a product monorepo to microservices
+## How shared code is versioned
 
-**Monorepo describes where code lives, not how it runs.** A product monorepo runs as many independent microservices on EKS — they are not one process.
+| Shared thing | Version scheme | Where a product pins it |
+| :----------- | :------------- | :---------------------- |
+| App packages | per-package semver, tag `<package>-vX.Y.Z`, released by release-please | `package.json` (caret ranges) |
+| Terraform modules | per-module tag `<module>-vX.Y.Z` | the `?ref=` on each `source` |
+| CI workflows and actions | a moving major tag `v1` | `uses: ...@v1` |
+| Products | one semver per repository, tag `vX.Y.Z`; the tag is what deploys to production | release-please |
 
-- A modular monolith starts as `apps/api`. As it decomposes, **add `apps/<service>/`** — each becomes its own image, Deployment, and HPA, scaling independently. **No repo migration.**
-- Each new service gets one entry under `qnsc-gitops/products/<product>/` (its own values from the shared base chart) and ArgoCD deploys it.
-- **Shared code stays trivial** via `packages/` (imported directly). Separate repos would force `qnsc-packages` + CodeArtifact publishing — the monorepo defers that overhead until it is actually needed.
-- **Graduate a service out to its own repo only when it earns a dedicated team** / independent release cadence / different language (Conway's law). Do not pre-split. The structure supports the exit when the time comes.
+## Where infrastructure lives (and is going)
 
----
+Platform-wide infrastructure is in `infra`. Each product still keeps its own `infra/` directory holding its cluster,
+database, cache and deploy roles; that pattern exists three times and has drifted, and the plan is to move each product
+onto one shared product-profile module in `infra`, one at a time. The rule to follow meanwhile is in `infra`'s
+[`docs/repository-boundaries.md`](https://github.com/quynhonsemiconductor/infra/blob/main/docs/repository-boundaries.md):
+read it before adding infrastructure anywhere.
 
-## 4. `qnsc-gitops` layout (ArgoCD config hub) — EKS phase
+## Adding a new product
 
-> **Phase note:** This layout is the **EKS-phase** ArgoCD config hub. It is created **when the EKS trigger fires** (architecture §13.2) — not on day one. In the **ECS phase (now)**, GitOps/ArgoCD does not exist: reusable CI/CD lives in **`ci`** (§2 Tier 1) and each product deploys via CI push (`deploy/ecs/` task-def → `update-service`). Stand `qnsc-gitops` up at the migration, then move per-product env values + image tags into it.
-
-```
-qnsc-gitops/
-├── bootstrap/                  # app-of-apps root Application per cluster
-├── clusters/                   # cluster/env registry
-│   ├── qnsc-dev/
-│   ├── qnsc-staging/
-│   └── qnsc-prod/
-├── addons/                     # platform add-ons (managed by ArgoCD, not OpenTofu)
-│   ├── karpenter/  external-secrets/  aws-lb-controller/  kyverno/  observability/
-├── charts/
-│   └── qnsc-service/           # shared Helm base chart (the golden path)
-├── applicationsets/            # generators that fan out products × envs → Applications
-└── products/
-    ├── rova/
-    │   ├── base/               # references rova/chart + qnsc-service base
-    │   └── envs/{dev,staging,prod}/values.yaml   # env values + image tag (CI bumps these)
-    ├── opshub/
-    └── learning/
-```
-
-**Flow:** product CI builds + pushes image to ECR → opens a PR (or commits) to `qnsc-gitops` bumping the env image tag → ArgoCD detects the change → syncs the product namespace. Promotion dev → staging → prod is a values change in `qnsc-gitops`.
-
-**Access control:** one central repo with **CODEOWNERS per `products/<name>/` directory** — each team approves its own deploys; the platform team owns `addons/`, `charts/`, `clusters/`. Split into per-product config repos *only later* if a team needs full autonomy.
-
----
-
-## 5. Fresh-start migration (archive, never delete-first)
-
-Rally and opshub run in production on ECS today; their infra repos manage live state. The restructure is **additive**, then cuts over, then archives.
-
-| Step | Action | Safety |
-|---|---|---|
-| **R0** | Create the new shared platform repos (`infra`, `tf-modules`, `qnsc-gitops`, `ci`, `infra-template`). | Additive — zero risk to prod |
-| **R1** | Create product monorepos (`rova`, `opshub`) by consolidating existing `*-api`/`*-web`/`*-infra` (preserve git history via subtree merges where useful). Build new products (`learning`, `knowledge-base`) here directly. | Old repos still live and serving |
-| **R2** | Migrate runtime ECS → EKS per architecture §13 (compute moves, data stays). `rally-infra`/`opshub-infra` remain **active** until that product is fully on EKS. | Never delete live-prod infra |
-| **R3** | Once a product is fully on EKS and stable, **archive** (read-only) the old `*-api`/`*-web`/`*-infra` repos. | History + audit preserved |
-| **R4** | Delete archived repos only much later, if ever — archived is free and keeps the audit trail. | Compliance-safe |
-
-**Rule:** a repo that managed production or regulated infrastructure is **archived, not deleted** — preserving audit trail is a SOC 2 / HIPAA requirement.
-
----
-
-## 6. Adding a new product (the test of the setup)
-
-1. **GitHub "Use this template"** (or the `ci` cookiecutter) scaffolds the new `product` monorepo — `apps/`, `packages/`, `chart/`, `infra/` wired to shared modules, `.github/workflows/` wired to `ci`.
-2. Add one ApplicationSet entry + `products/<name>/envs/*` values in `qnsc-gitops`.
-3. ArgoCD creates the namespace and syncs.
-
-Near-zero marginal effort — the platform's core promise.
-
----
-
-## 7. Decision record
-
-| # | Decision | Rationale | Status |
-|---|---|---|---|
-| ADR-R1 | Product monorepo (api+web+worker+chart+infra per product) | Atomic full-stack PRs, one owner, ~6 repos not ~18 | Accepted |
-| ADR-R2 | Central `qnsc-gitops` config hub (CODEOWNERS per product dir) | One pane of glass, curated standards; split later if needed | Accepted |
-| ADR-R3 | Separate config from code (chart with code; image tags/values in gitops) | GitOps best practice; clean deploy audit | Accepted |
-| ADR-R4 | Move reusable CI out of `qnsc-gitops` into `ci`/`.github` | `qnsc-gitops` becomes true GitOps config | Accepted |
-| ADR-R5 | Reject full monorepo and reject 3-repos-per-product | Compliance blast-radius / tooling weight; vs repo sprawl / no atomicity | Accepted |
-| ADR-R6 | Archive (never delete-first) repos that managed prod/regulated infra | Audit trail = compliance requirement | Accepted |
-| ADR-R7 | No dedicated template repo — use GitHub template feature / `ci` cookiecutter; revisit a scaffolder at product #3+ | Avoid premature repo; YAGNI | Accepted |
-| ADR-R8 | Product monorepo scales to microservices via `apps/<service>/` + `packages/`; split to own repo only on team-split | Monorepo = code layout, not runtime; defers package-publishing overhead | Accepted |
-| ADR-R9 | Deploy layer is **phase-aware**: ECS phase uses `ci` + `deploy/ecs/`; EKS phase adds `chart/` + `qnsc-gitops` at migration. Same repo topology both phases | Matches ECS-now/EKS-when-triggered (architecture §8/§13); `qnsc-gitops` not created until the EKS trigger fires | Accepted 2026-07-01 |
+1. Start from `infra-template` for the infrastructure repository structure, state wiring and deploy roles.
+2. Use the shared packages for what they own (sign-in, config validation, HTTP errors, cache, telemetry) instead of
+   writing them again; if one almost fits, change `app-platform`.
+3. Add thin workflow callers for CI, deploy and release from `ci`; do not copy workflow logic.
+4. Add a `renovate.json` extending the shared preset, so version bumps arrive as pull requests.
+5. Give it a README section that runs the product from a clean clone, and a CI job that runs those same commands
+   (OpsHub and Rova show the pattern).
