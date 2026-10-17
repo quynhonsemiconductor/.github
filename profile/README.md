@@ -46,14 +46,23 @@ We operate in two streams:
 This org is where we build and run **QNSC's internal platform**. It is engineering tooling
 for our own teams — not our silicon IP, which lives elsewhere.
 
-| Project | What it is |
-| :------ | :--------- |
-| **Rova** | Internal work-management platform — an Agile project & portfolio tracker (modeled on Broadcom Rally) for planning chip-design and software delivery. `rova` |
-| **OpsHub** | Internal operations & DevOps tooling for the platform team. `opshub-web` · `opshub-api` · `opshub-infra` |
-| **Infra / GitOps** | Shared infrastructure-as-code and GitOps delivery. `infra` · `ci` · `tf-modules` |
+| Project | What it is | Repositories |
+| :------ | :--------- | :----------- |
+| **Rova** | Work management: projects, work items, iterations, releases, test cases and portfolio reporting for planning chip-design and software delivery | [`rova`](https://github.com/quynhonsemiconductor/rova) |
+| **OpsHub** | Internal IT and HR operations: assets, access requests, compliance, workforce, contracts, and security and quality records | [`opshub`](https://github.com/quynhonsemiconductor/opshub) |
+| **Knowledge Base** | Enterprise knowledge search for our teams: hybrid retrieval over documents we ingest | [`qnsc-kb-backend`](https://github.com/quynhonsemiconductor/qnsc-kb-backend) · [`qnsc-kb-frontend`](https://github.com/quynhonsemiconductor/qnsc-kb-frontend) |
+| **Shared platform** | The code every product reuses: application packages, CI workflows, infrastructure modules and platform infrastructure, GitOps for the Kubernetes estate | [`app-platform`](https://github.com/quynhonsemiconductor/app-platform) · [`ci`](https://github.com/quynhonsemiconductor/ci) · [`tf-modules`](https://github.com/quynhonsemiconductor/tf-modules) · [`infra`](https://github.com/quynhonsemiconductor/infra) · [`infra-template`](https://github.com/quynhonsemiconductor/infra-template) · [`gitops`](https://github.com/quynhonsemiconductor/gitops) |
+| **Chip-design tooling** | An AI agent system for chip design, and a microcontroller built block by block as a training project | [`chipgraph`](https://github.com/quynhonsemiconductor/chipgraph) · [`vlsi_deep_training`](https://github.com/quynhonsemiconductor/vlsi_deep_training) |
+| **Developer tools & web** | An MCP server for GitHub, Microsoft 365, Rova and a browser; the company marketing site | [`mcp-tools`](https://github.com/quynhonsemiconductor/mcp-tools) · [`qnsc-landing`](https://github.com/quynhonsemiconductor/qnsc-landing) |
+
+New here? Start with the engineering docs in this repository:
+
+- [`docs/ONBOARDING.md`](../docs/ONBOARDING.md) — access, toolchain, running a product locally, how a change ships
+- [`docs/TECH_STACK.md`](../docs/TECH_STACK.md) — what we run, layer by layer
+- [`docs/PLATFORM_ARCHITECTURE.md`](../docs/PLATFORM_ARCHITECTURE.md) — request path, sign-in, workers, deploy flow
+- [`docs/REPOSITORY_STRUCTURE.md`](../docs/REPOSITORY_STRUCTURE.md) — which repository owns what
 
 ### On the roadmap
-- 📚 **Knowledge Base** — an enterprise-grade knowledge platform for our teams and customers
 - 🎓 **Learning System** — structured onboarding & on-the-job training for our engineer pipeline
 
 ---
@@ -62,12 +71,17 @@ for our own teams — not our silicon IP, which lives elsewhere.
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat-square&logo=nodedotjs&logoColor=white)
-![Terraform](https://img.shields.io/badge/Terraform%20(HCL)-7B42BC?style=flat-square&logo=terraform&logoColor=white)
-![GitOps](https://img.shields.io/badge/GitOps-326CE5?style=flat-square&logo=argo&logoColor=white)
+![React](https://img.shields.io/badge/React-61DAFB?style=flat-square&logo=react&logoColor=black)
+![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white)
+![OpenTofu](https://img.shields.io/badge/OpenTofu-FFDA18?style=flat-square&logo=opentofu&logoColor=black)
+![Cloudflare](https://img.shields.io/badge/Cloudflare-F38020?style=flat-square&logo=cloudflare&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
+![Grafana](https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white)
 
-We build with **TypeScript** across web and API, **Terraform/HCL** for infrastructure, and a
-**GitOps** workflow for delivery.
+We build with **TypeScript** (NestJS and React) across the web and API, **Python** for the Knowledge Base,
+**OpenTofu** for infrastructure on AWS and Cloudflare, and ship through **GitHub Actions** with shared reusable
+workflows. See [`docs/TECH_STACK.md`](../docs/TECH_STACK.md).
 
 ---
 
