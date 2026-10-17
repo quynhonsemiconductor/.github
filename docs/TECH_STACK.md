@@ -49,8 +49,14 @@ not running yet is in [Direction](#direction).
 | Sign-in app | The API only | Delegated permissions only (OpenID sign-in, no application permissions). No Graph application permissions |
 | `<Product> <Env> Service` | The worker only | A **certificate** credential and no client secret. Application permissions only for what the worker does. Sending mail is `Mail.Send` limited to the product's mailbox through **Exchange RBAC**; `Mail.Send` is never consented in Entra. For SharePoint or OneDrive, `Sites.Selected` rather than `Sites.*.All` |
 
-On both registrations: **assignment required** (only assigned users and groups can sign in), and **at least two owners**, so
-one person leaving never orphans an app.
+On both registrations:
+
+- **Assignment required**: only assigned users and groups can sign in.
+- **No personal app owners.** An app owner can add credentials to the app, which is a privilege path to whatever the
+  app can do. Apps are managed through admin roles instead, and continuity comes from **two admin accounts**: the
+  owner's own, and a break-glass account protected by phishing-resistant MFA. One person leaving never orphans an app.
+- **Redirect URIs:** loopback (`localhost`) redirect URIs are allowed **only** on Dev web apps and on public-client
+  (desktop or CLI) apps. A production web app registers none.
 
 ### Shared application packages (`app-platform`)
 
