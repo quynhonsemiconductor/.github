@@ -42,6 +42,16 @@ not running yet is in [Direction](#direction).
 | Knowledge Base | Its own accounts and password login, with Entra sign-in configurable | |
 | Authorization | Stays in each product (roles and permissions are product data) | The package authenticates; it does not decide what a user may do |
 
+**Entra app-registration standard** (decided 2026-10-18; **rollout in progress**, so a product's existing registrations may not match yet). Two registrations per product per environment, never one that does both jobs:
+
+| Registration | Used by | Credentials and permissions |
+| :----------- | :------ | :-------------------------- |
+| Sign-in app | The API only | Delegated permissions only (OpenID sign-in, no application permissions). No Graph application permissions |
+| `<Product> <Env> Service` | The worker only | A **certificate** credential and no client secret. Application permissions only for what the worker does. Sending mail is `Mail.Send` limited to the product's mailbox through **Exchange RBAC**; `Mail.Send` is never consented in Entra. For SharePoint or OneDrive, `Sites.Selected` rather than `Sites.*.All` |
+
+On both registrations: **assignment required** (only assigned users and groups can sign in), and **at least two owners**, so
+one person leaving never orphans an app.
+
 ### Shared application packages (`app-platform`)
 
 Published to GitHub Packages as `@quynhonsemiconductor/*`, versioned and released independently with release-please.
@@ -93,8 +103,9 @@ There is also a private, never-published `testing` package (the testcontainers h
 
 | Layer | What we run | Notes |
 | :---- | :---------- | :---- |
-| Storage | AWS Secrets Manager: **one bundle (a single JSON secret) per product and environment**, read key by key by the ECS task definition | OpenTofu creates the empty container, a person sets the values out of band, and values never appear in Terraform state |
-| Rotation | Most values are issued by other systems (Entra, Cloudflare, GitHub), so rotation happens at the issuer and the new value is written to the bundle. There is no rotation automation; the database master password is the exception (RDS-managed) | |
+| Storage | AWS Secrets Manager: **one bundle (a single JSON secret) per product and environment**, named `<product>/<env>/app`, one key per value, read key by key by the ECS task definition | |
+| Ownership | OpenTofu owns the container, the declared keys and the wiring into task definitions and IAM, and **never the values**. The owner sets the values from the product's runbook, out of band | Values never appear in Terraform state, code, logs or chat |
+| Rotation | Most values are issued by other systems (Entra, Cloudflare, GitHub), so rotation happens at the issuer and the new value is written to the bundle. A **signing key** that a verifier must keep accepting during the change rotates with a `-previous` companion key: the verifier gets both first, then the signer moves, then the old key is dropped | There is no rotation automation; the database master password is the exception (RDS-managed) |
 
 ### Delivery and quality
 
@@ -118,8 +129,9 @@ already exist for it.
   state: one Helm chart for every service, one values file per product and environment, and ArgoCD applications that
   reconcile them. A product repository never touches a cluster; CI builds and attests the image, then bumps an image
   tag in `gitops`. Rova is first and runs on both paths side by side until the cutover is proven and reversible.
-- **Secrets on the cluster** are meant to come from Azure Key Vault through External Secrets (the `identity` package
-  documents this). The External Secrets store checked into `gitops` points at AWS Secrets Manager today.
+- **Secrets on the cluster:** the same bundles, with the same key names, move to Azure Key Vault through External
+  Secrets on the on-premises cluster (the `identity` package documents this). The External Secrets store checked into
+  `gitops` points at AWS Secrets Manager today.
 - **Infrastructure consolidation.** Each product repository still carries its own `infra/` directory; the plan is for
   one product-profile module in `infra` to replace the three copies.
 - **Shared packages not yet adopted:** `platform-jobs` (durable jobs) and `platform-mail` (Graph email) are built and
