@@ -11,12 +11,12 @@ Each product owns a block so the products run side by side. Every host port is b
 | Product | API | Web (Vite) | Postgres | Valkey / Redis | Object storage | Mail | OTel (OTLP / metrics) |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | rova (block pending #742) | 3010 | 5175 | 5420 | 6320 | Garage 4620 (pending #753) | Mailpit 1120 / 8120 (pending #742) | 4420 / 8420 |
-| opshub (block pending #427) | 3001 | 5174 | 5410 | 6310 | LocalStack 4610 (Garage: not started) | Mailpit 1110 / 8110 (pending #431) | 4410 / 8410 |
+| opshub (block pending #427) | 3001 | 5174 | 5410 | 6310 | Garage 4610 (pending #439) | Mailpit 1110 / 8110 (pending #431) | 4410 / 8410 |
 | knowledge base (qnsc-kb-backend) | 8000 | 5173 | 5432 | 6379 | Garage 4570 | console locally; Graph when deployed (invitations and password resets) | none |
 
 - LocalStack's community edition does **not** keep its data across a restart (its persistence option is a Pro feature). The KB
   uses Garage on 4570, whose volumes survive a restart. rova moves to Garage in #753 (until it merges, its local uploads go to
-  LocalStack and do not survive a restart). opshub is not started: it still runs LocalStack, so its uploads do not survive one.
+  LocalStack and do not survive a restart). opshub moves to Garage in #439; until it merges, its uploads go to LocalStack and do not survive a restart.
 - The web port is strict: Vite refuses to start on a taken port, because the sign-in redirect and the bucket CORS are set for that origin.
 - The KB keeps the default ports. Its frontend (qnsc-kb-frontend) uses the same 5173 as its dev server.
 
@@ -37,7 +37,7 @@ owner first.
 | Product | Dev stack | E2E stack | Checks today |
 | --- | --- | --- | --- |
 | rova | On `main`: the compose file and the `pnpm` steps in its README (CI's local quickstart job runs them). `make local` / `make check` / `make down`: pending #742. | `scripts/e2e/run.sh`: pending #742 | On `main`: the CI local quickstart. `make check` (readiness, worker heartbeat, sign-in through the web proxy, storage round trip, mail landing in Mailpit): pending #742 |
-| opshub | On `main`: the compose file and the `pnpm` steps in its README. `make local`: not started (after #431). | `scripts/e2e/run.sh`: pending #435 | On `main`: the CI local quickstart and the env example spec. `make check`: not started. |
+| opshub | On `main`: the compose file and the `pnpm` steps in its README. `make local` / `make down`: pending #439. | `scripts/e2e/run.sh`: pending #435 | On `main`: the CI local quickstart and the env example spec. `make check` (readiness, worker heartbeat, sign-in through the web proxy, storage round trip, mail landing in Mailpit): pending #439. |
 | knowledge base | On `main`: `docker compose up -d --build db redis garage garage-init`, then the README's API steps. Garage replaces LocalStack. | `scripts/e2e/run.sh`: pending #253 | On `main`: the CI quickstart job (migrations, health, login, worker ping, beat, and a presigned PUT/GET through Garage). |
 
 Do not reuse a dev stack for e2e, and do not share an e2e stack between runs.
