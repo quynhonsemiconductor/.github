@@ -181,7 +181,7 @@
       "automerge": false
     },
     {
-      "description": "Data stores move as ONE PR: PostgreSQL, pgvector and Valkey images in compose files and CI service containers are grouped, so a bump is reviewed against the same version table in docs/TECH_STACK.md. Minor and patch only; a major is its own decision and is never automerged. The Terraform engine_version strings (rds, cache) are not bumped by Renovate: the per-repo consistency tests fail until they match the compose and CI pins.",
+      "description": "Data stores move as ONE PR: PostgreSQL, pgvector and Valkey images in compose files and CI service containers are grouped, so a bump is reviewed against the same version table in docs/TECH_STACK.md. Minor and patch only; a major is its own decision and is never automerged. Terraform's engine_version is NOT in this group: it is bumped by hand in the same change, and each repository's consistency test enforces the major against compose.",
       "matchDatasources": [
         "docker"
       ],
@@ -195,7 +195,21 @@
       "labels": [
         "dependencies",
         "data-store"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
       ]
+    },
+    {
+      "description": "Valkey stays on the 8.1 line. ElastiCache's '8.2' is open-source 8.1 plus valkey-search, and no valkey/valkey:8.2 image exists, so a 9.x or 8.2 tag is never proposed.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "valkey/valkey"
+      ],
+      "allowedVersions": "/^8\\.1\\./"
     },
     {
       "description": "First-party packages: their own group, never auto-merged. They are published from app-platform by this org and released together, so a bump to them is a platform decision \u2014 burying one in a group with a third-party patch loses that signal. THIS RULE MUST STAY LAST. Renovate applies packageRules in order and a later match overwrites an earlier one field by field. While this rule sat FIRST, the generic 'npm production (non-major)' rule above matched the same packages and overwrote its groupName, so @quynhonsemiconductor/identity and platform-cache were both proposed inside a 46-package third-party group in rova and opshub \u2014 the exact outcome this rule exists to prevent. It was invisible because the group PR is still opened and still green; only the dashboard's package list shows where they ended up.",

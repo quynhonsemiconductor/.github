@@ -33,18 +33,19 @@ not running yet is in [Direction](#direction).
 | Queues | Postgres tables (the transactional outbox) read by worker relays | See [Workers and outboxes](./PLATFORM_ARCHITECTURE.md#workers-and-outboxes) |
 
 **Data-store versions.** One version per engine, the same in every place it runs. Renovate
-bumps the container images in one group (`data stores (postgres, pgvector, valkey)`); the Terraform
-`engine_version` strings are bumped by hand in the same change, and each repository's consistency
-test fails until compose, CI and Terraform agree.
+bumps the container images in one group (`data stores (postgres, pgvector, valkey)`), minor and patch
+only, and keeps Valkey on the 8.1 line. Terraform's `engine_version` is **not** in that group: it is bumped
+by hand in the same change, and each repository's consistency test fails until its major matches the compose
+pin. This is decided, not an oversight.
 
 | Store | Local compose and CI | Test containers (app-platform) | AWS target | AWS today |
 | :---- | :------------------- | :----------------------------- | :--------- | :-------- |
-| PostgreSQL | `postgres:18.6-alpine` (OpsHub, Rova) | `postgres:18.6` (Debian; glibc collation, see `packages/testing/src/docker.ts`) | RDS 18.6 | RDS 17.9 (OpsHub, Rova); 16.13 (Knowledge Base, develop) |
-| pgvector | `pgvector/pgvector:0.8.2-pg18` (Knowledge Base) | n/a | 0.8.2 (RDS 18.4 and later ship 0.8.2) | 0.8.1 on RDS 16 |
+| PostgreSQL | `postgres:18.6` (Debian, not Alpine: glibc collation, as on RDS) for OpsHub and Rova | `postgres:18.6` (Debian) | major 18 (currently 18.6) | RDS 17.9 (OpsHub, Rova prod and develop); 16.13 (Knowledge Base, develop) |
+| pgvector | `pgvector/pgvector:0.8.2-pg18` (Knowledge Base). **Exception:** this image is PostgreSQL 18.4, not 18.6 (no pgvector image pins 18.6); same major | n/a | pgvector 0.8.2 (RDS 18.4 and later ship it) | 0.8.1 on RDS 16 |
 | Valkey | `valkey/valkey:8.1.10-alpine` | `valkey/valkey:8.1.10-alpine` | ElastiCache `8.1` (same engine as local and CI) | ElastiCache 7.2.6 (runtime-dev, rova prod) |
 
-Valkey is 8.1 everywhere. ElastiCache's "8.2" is open-source Valkey 8.1 plus the valkey-search module, so it is not a separate target, and
-no `valkey/valkey:8.2` image is published. Do not "upgrade" to 8.2.
+Valkey is 8.1 everywhere. ElastiCache's "8.2" is open-source Valkey 8.1 plus the valkey-search module, so it is not a
+separate target, and no `valkey/valkey:8.2` image is published. Do not "upgrade" to 8.2.
 
 ### Identity
 
