@@ -141,6 +141,29 @@ flowchart LR
 The Knowledge Base uses Celery (workers and a scheduler) with Redis as the broker for its ingestion and embedding
 work.
 
+## Time: the database clock is the only clock for stored data
+
+An API and its workers run on several hosts but share one database, so the database decides what time it is for
+anything it stores or compares.
+
+- **Stamping.** Timestamp columns are filled by the database: a column default (`now()`), or `now()` in the write
+  itself. Application code does not pass `new Date()` (or `datetime.now()`) into an insert or update of a timestamp
+  column. A value that comes from outside, such as a user-chosen due date or a provider's event time, is stored as
+  given.
+- **Comparing.** Anything compared with a stored timestamp uses `now()` inside the same SQL statement. This covers
+  due and claim checks, leases and their expiry, retry back-off, report windows and their defaults, SLA deadlines,
+  sweepers and retention cut-offs. When a response has to echo the bound it used, read it from the database
+  (`SELECT now()`), never from the host.
+- **Host clock.** Only for things that never meet a stored row: in-process timeouts, rate-limit windows held in
+  Valkey, log lines and metrics.
+- **Tests.** Faking the host clock does not move the database clock. A test that needs time to pass moves the rows'
+  timestamps in the database instead, and every clock fix comes with a test that skews the host against the database
+  and fails without the fix.
+
+Why: in production the drift between hosts and the database is milliseconds, but when two clocks are mixed, rows go
+missing from their own report, outbox rows wait a cycle, and leases expire early. One clock removes that whole class
+of bug, and the rule stays the same on-prem.
+
 ## How a change ships
 
 ```mermaid
