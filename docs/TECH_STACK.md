@@ -41,10 +41,10 @@ test fails until compose, CI and Terraform agree.
 | :---- | :------------------- | :----------------------------- | :--------- | :-------- |
 | PostgreSQL | `postgres:18.6-alpine` (OpsHub, Rova) | `postgres:18.6` (Debian; glibc collation, see `packages/testing/src/docker.ts`) | RDS 18.6 | RDS 17.9 (OpsHub, Rova); 16.13 (Knowledge Base, develop) |
 | pgvector | `pgvector/pgvector:0.8.2-pg18` (Knowledge Base) | n/a | 0.8.2 (RDS 18.4 and later ship 0.8.2) | 0.8.1 on RDS 16 |
-| Valkey | `valkey/valkey:8.1.10-alpine` | `valkey/valkey:8.1.10-alpine` | ElastiCache 8.2 (no 8.2 image is published on Docker Hub or GHCR, so local runs 8.1.10) | ElastiCache 7.2.6 (runtime-dev, rova prod) |
+| Valkey | `valkey/valkey:8.1.10-alpine` | `valkey/valkey:8.1.10-alpine` | ElastiCache `8.1` (same engine as local and CI) | ElastiCache 7.2.6 (runtime-dev, rova prod) |
 
-The Valkey row is the one place the local version is not the AWS version. It is a patch-and-minor gap inside the
-same 8.x line and is recorded here rather than hidden.
+Valkey is 8.1 everywhere. ElastiCache's "8.2" is open-source Valkey 8.1 plus the valkey-search module, so it is not a separate target, and
+no `valkey/valkey:8.2` image is published. Do not "upgrade" to 8.2.
 
 ### Identity
 
