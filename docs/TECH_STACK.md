@@ -62,7 +62,7 @@ separate target, and no `valkey/valkey:8.2` image is published. Do not "upgrade"
 | Registration | Used by | Credentials and permissions |
 | :----------- | :------ | :-------------------------- |
 | Sign-in app | The API only | Delegated permissions only (OpenID sign-in, no application permissions). No Graph application permissions |
-| `<Product> <Env> Service` | The worker only | A **certificate** credential and no client secret. Application permissions only for what the worker does. Sending mail is `Mail.Send` limited to the product's mailbox through **Exchange RBAC**; `Mail.Send` is never consented in Entra. For SharePoint or OneDrive, `Sites.Selected` rather than `Sites.*.All` |
+| `<Product> <Env> Service` | The worker only | A **certificate** credential and no client secret. Application permissions only for what the worker does. Sending mail is `Mail.Send` limited to the product's mailbox through **Exchange RBAC**; `Mail.Send` is never consented in Entra. For SharePoint or OneDrive, `Sites.Selected` rather than `Sites.*.All`. **One deliberate exception:** rova's Service app holds Graph **Application `User.Invite.All`** for B2B guest provisioning — tenant-wide by design (it cannot be mailbox-scoped), accepted because only the worker holds the certificate and the sign-in app keeps no application permissions. The owner grants it only when the guest-invite change is about to merge; mitigations: Entra B2B allowed-domain restrictions, an audit-log alert on "Invite external user" (Entra records invitations in the AUDIT log, not the sign-in log), and certificate rotation on schedule — the certificate is 1-year and its expiry is watched |
 
 On both registrations:
 
