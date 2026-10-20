@@ -212,6 +212,26 @@
       "allowedVersions": "/^8\\.1\\./"
     },
     {
+      "description": "PostgreSQL stays on the 18 line (RDS major 18). A 19 tag is a major decision and is never proposed.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "postgres"
+      ],
+      "allowedVersions": "/^18\\./"
+    },
+    {
+      "description": "pgvector tags are <extension>-pg<major> (0.8.2-pg18), so the line is the pg suffix, not a leading 18. Stays on PostgreSQL 18.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "pgvector/pgvector"
+      ],
+      "allowedVersions": "/-pg18$/"
+    },
+    {
       "description": "First-party packages: their own group, never auto-merged. They are published from app-platform by this org and released together, so a bump to them is a platform decision \u2014 burying one in a group with a third-party patch loses that signal. THIS RULE MUST STAY LAST. Renovate applies packageRules in order and a later match overwrites an earlier one field by field. While this rule sat FIRST, the generic 'npm production (non-major)' rule above matched the same packages and overwrote its groupName, so @quynhonsemiconductor/identity and platform-cache were both proposed inside a 46-package third-party group in rova and opshub \u2014 the exact outcome this rule exists to prevent. It was invisible because the group PR is still opened and still green; only the dashboard's package list shows where they ended up.",
       "matchPackageNames": [
         "/^@quynhonsemiconductor\\//"
