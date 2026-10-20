@@ -27,10 +27,25 @@ not running yet is in [Direction](#direction).
 
 | Layer | What we run | Notes |
 | :---- | :---------- | :---- |
-| Relational | PostgreSQL on Amazon RDS | The RDS module's default major (17) is what the products deploy today. Local stacks and CI use containers: OpsHub 18, Rova 17, Knowledge Base 16 with pgvector |
-| Cache / coordination | Valkey (Redis-compatible) on ElastiCache: `develop` shares one node between products; a product's production stack uses the module's serverless mode, and stays disabled until the product goes live | Used for sessions, rate limits, pub/sub wake-ups and the cross-pod lock behind scheduled jobs. Local containers run Valkey 8. The Knowledge Base's local stack runs Redis 7 as its Celery broker and cache |
+| Relational | PostgreSQL on Amazon RDS, major 18 (target; see the version table below) | Local stacks and CI use the same major and minor as RDS, as container images. Knowledge Base uses pgvector on top of PostgreSQL |
+| Cache / coordination | Valkey (Redis-compatible) on ElastiCache: `develop` shares one node between products; a product's production stack uses the module's serverless mode, and stays disabled until the product goes live | Used for sessions, rate limits, pub/sub wake-ups and the cross-pod lock behind scheduled jobs. The Knowledge Base's Celery broker and cache run Valkey too (the Redis protocol) |
 | Object storage | S3 or Cloudflare R2 (S3-compatible), chosen per product by configuration | Uploads go browser → presigned URL → bucket. Local development uses LocalStack |
 | Queues | Postgres tables (the transactional outbox) read by worker relays | See [Workers and outboxes](./PLATFORM_ARCHITECTURE.md#workers-and-outboxes) |
+
+**Data-store versions.** One version per engine, the same in every place it runs. Renovate
+bumps the container images in one group (`data stores (postgres, pgvector, valkey)`), minor and patch
+only, and keeps Valkey on the 8.1 line. Terraform's `engine_version` is **not** in that group: it is bumped
+by hand in the same change, and each repository's consistency test fails until its major matches the compose
+pin. This is decided, not an oversight.
+
+| Store | Local compose and CI | Test containers (app-platform) | AWS target | AWS today |
+| :---- | :------------------- | :----------------------------- | :--------- | :-------- |
+| PostgreSQL | `postgres:18.6` (Debian, not Alpine: glibc collation, as on RDS) for OpsHub and Rova | `postgres:18.6` (Debian) | major 18 (currently 18.6) | RDS 17.9 (OpsHub, Rova prod and develop); 16.13 (Knowledge Base, develop) |
+| pgvector | `pgvector/pgvector:0.8.2-pg18` (Knowledge Base). **Exception:** this image is PostgreSQL 18.4, not 18.6 (no pgvector image pins 18.6); same major | n/a | pgvector 0.8.2 (RDS 18.4 and later ship it) | 0.8.1 on RDS 16 |
+| Valkey | `valkey/valkey:8.1.10-alpine` | `valkey/valkey:8.1.10-alpine` | ElastiCache `8.1` (same engine as local and CI) | ElastiCache 7.2.6 (runtime-dev, rova prod) |
+
+Valkey is 8.1 everywhere. ElastiCache's "8.2" is open-source Valkey 8.1 plus the valkey-search module, so it is not a
+separate target, and no `valkey/valkey:8.2` image is published. Do not "upgrade" to 8.2.
 
 ### Identity
 
