@@ -243,7 +243,7 @@ until [ "$(aws elasticache describe-replication-groups --profile qnsc-admin --re
 
 Drop the encryption flags if the saved file shows them off. If the saved file shows an auth token, do not pass it on the command line. Put the full request in a JSON file with `--cli-input-json file://~/dw/restore.json`, with the file mode set to `600`, and delete the file after the restore.
 
-3. Import the restored group into the state, then open the revert PR. The address is `module.shared_cache[0].aws_elasticache_replication_group.this[0]`, and the import ID is `qnsc-runtime-dev-cache`:
+3. Run these from the owner's checkout of the **infra** repo (its root holds `live/`), not a product repo. Import the restored group into the state, then open the revert PR. The address is `module.shared_cache[0].aws_elasticache_replication_group.this[0]`, and the import ID is `qnsc-runtime-dev-cache`:
 
 ```
 tofu -chdir=live/runtime-dev state rm 'module.shared_cache[0].aws_elasticache_replication_group.this[0]'
