@@ -24,6 +24,7 @@
     "dashboard, no PRs are opened for the five first-party packages, and nothing",
     "fails.",
     "",
+    "pinDigests=true: every update pins to a commit digest; git refs (the shared ci reusables) carry the release in the trailing # vX.Y.Z comment, which Renovate rewrites on bump. This is what retires the moving v1 tag for good: pipelines change only through reviewed Renovate PRs.",
     "REBASING IS DELIBERATELY LAZY (rebaseWhen=conflicted, updateNotScheduled=false).",
     "main-protection requires branches to be up to date, and Renovate's default rebaseWhen=auto",
     "reads that as 'rebase whenever behind', while updateNotScheduled defaults to true, which lets",
@@ -46,6 +47,7 @@
     ":semanticCommits",
     ":dependencyDashboard"
   ],
+  "pinDigests": true,
   "packageRules": [
     {
       "description": "Group non-major npm updates into one PR per dependency type, mirroring the Dependabot policy this replaces. config:recommended separates majors already but does NOT group anything, so without this a handover from Dependabot trades two grouped PRs a week for one PR per dependency.",
