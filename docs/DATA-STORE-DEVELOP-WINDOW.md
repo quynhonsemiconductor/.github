@@ -69,6 +69,12 @@ aws rds describe-db-instances --profile qnsc-admin --region ap-southeast-1 --que
 
 ## (b) Snapshots, owner, right before each apply
 
+Create the scratch directory once, before the first redirect:
+
+```
+mkdir -p ~/dw
+```
+
 Take each snapshot right before its own apply, not all at the start, so a stop in one step does not leave a stale snapshot behind. Wait for each snapshot to reach `available` before starting its apply.
 
 Save the instance's settings before the apply. The rollback in (f) needs them:
@@ -93,6 +99,13 @@ For the shared cache, before infra #195:
 ```
 aws elasticache create-snapshot --profile qnsc-admin --region ap-southeast-1 --replication-group-id qnsc-runtime-dev-cache --snapshot-name qnsc-runtime-dev-cache-pre-valkey81-20261020
 until [ "$(aws elasticache describe-snapshots --profile qnsc-admin --region ap-southeast-1 --snapshot-name qnsc-runtime-dev-cache-pre-valkey81-20261020 --query 'Snapshots[0].SnapshotStatus' --output text)" = available ]; do sleep 60; done
+```
+
+Save the cache's settings before the infra #195 apply. The cache rollback in (f) needs every one of them, including the parameter group, encryption, KMS key, user groups and port:
+
+```
+aws elasticache describe-replication-groups --profile qnsc-admin --region ap-southeast-1 --replication-group-id qnsc-runtime-dev-cache > ~/dw/qnsc-runtime-dev-cache-before.json
+aws elasticache describe-cache-clusters --profile qnsc-admin --region ap-southeast-1 --cache-cluster-id qnsc-runtime-dev-cache-001 --show-cache-node-info > ~/dw/qnsc-runtime-dev-cache-001-before.json
 ```
 
 Record the snapshot names in the window log. The snapshots stay until the window is verified good for a week.
@@ -171,45 +184,82 @@ The first must return `0.8.2`, the second `t`. If the deploy ran on PG16 (see th
 
 Neither RDS nor ElastiCache can downgrade an engine in place. Rollback restores from the snapshot taken in (b), so every write made after the snapshot is lost. Record the lost write window.
 
-### RDS (rova, opshub, KB): rename the upgraded instance, then restore under the original name
+OpenTofu state has to be fixed by hand in both cases, because the restore creates a new resource that the state does not know. The revert PR then brings the code back in line with the restored resource. Run every `tofu` command from the owner's checkout of the product repo, with `AWS_PROFILE=qnsc-admin AWS_REGION=ap-southeast-1 AWS_PAGER=""`.
 
-The rename is the only way to free the original identifier. Restoring under a new identifier would change the endpoint that every product reads.
+### RDS (rova, opshub, KB)
 
-1. Rename the upgraded instance and wait for it:
+1. Turn deletion protection off on the upgraded instance, wait, then delete it. Keep a final snapshot of the failed instance:
 
 ```
-aws rds modify-db-instance --profile qnsc-admin --region ap-southeast-1 --db-instance-identifier rova-develop --new-db-instance-identifier rova-develop-pg18-failed --apply-immediately
-aws rds wait db-instance-available --profile qnsc-admin --region ap-southeast-1 --db-instance-identifier rova-develop-pg18-failed
+aws rds modify-db-instance --profile qnsc-admin --region ap-southeast-1 --db-instance-identifier rova-develop --no-deletion-protection --apply-immediately
+until [ "$(aws rds describe-db-instances --profile qnsc-admin --region ap-southeast-1 --db-instance-identifier rova-develop --query 'DBInstances[0].DBInstanceStatus' --output text)" = available ]; do sleep 60; done
+aws rds delete-db-instance --profile qnsc-admin --region ap-southeast-1 --db-instance-identifier rova-develop --final-db-snapshot-identifier rova-develop-pg18-failed-final
+until ! aws rds describe-db-instances --profile qnsc-admin --region ap-southeast-1 --db-instance-identifier rova-develop >/dev/null 2>&1; do sleep 60; done
 ```
 
-2. Restore the snapshot under the original identifier. The snapshot keeps its own engine version (17.x for rova and opshub, 16.x for KB), so `--engine-version` is not a restore option. Take each value marked `<...>` from `~/dw/rova-develop-before.json`:
+The last loop exits when the identifier no longer exists. Do not use `aws rds wait` on the identifier while it is being deleted.
+
+2. Restore the snapshot under the original identifier, on the old parameter group. Take each `<...>` value from `~/dw/rova-develop-before.json`. The snapshot keeps its own engine version, so there is no engine flag:
 
 ```
 aws rds restore-db-instance-from-db-snapshot --profile qnsc-admin --region ap-southeast-1 --db-instance-identifier rova-develop --db-snapshot-identifier rova-develop-pre-pg18-20261020 --db-instance-class <DBInstanceClass> --db-subnet-group-name <DBSubnetGroup.DBSubnetGroupName> --vpc-security-group-ids <VpcSecurityGroups[].VpcSecurityGroupId> --db-parameter-group-name default.postgres17 --no-publicly-accessible --no-multi-az --manage-master-user-password
-aws rds wait db-instance-available --profile qnsc-admin --region ap-southeast-1 --db-instance-identifier rova-develop
+until [ "$(aws rds describe-db-instances --profile qnsc-admin --region ap-southeast-1 --db-instance-identifier rova-develop --query 'DBInstances[0].DBInstanceStatus' --output text)" = available ]; do sleep 60; done
 ```
 
-Use `--multi-az` instead of `--no-multi-az` if `MultiAZ` is true in the saved file. Use `default.postgres16` for KB. Use `--manage-master-user-password` only if the saved file has a `MasterUserSecret`. A restored instance gets a new RDS-managed secret, so the app's database secret must be re-read.
+Use `--multi-az` instead of `--no-multi-az` if the saved file has `MultiAZ` true. Use `default.postgres16` for KB. Use `--manage-master-user-password` only if the saved file has a `MasterUserSecret`. The restored instance has a new RDS-managed secret ARN, so anything that references it is replaced on the next plan. Opshub's and KB's values come from their own saved files.
 
-3. Revert the engine change in the repo: a PR that restores `engine_version = "17"` (16 for KB) and the pg17 parameter group. Its CI plan must show the parameter group created and the instance's parameter group updated, with no instance replace. Check those counts (a), then merge. The merge applies the revert.
-
-If step 2 fails, the original instance is still `<product>-develop-pg18-failed`. Do not delete it until the restore works.
-
-### Shared cache: restore to a new group, then point the stacks at it
-
-ElastiCache cannot rename a replication group, so the restore takes a new identifier:
+3. Point OpenTofu's state at the restored instance. The address is the one in the develop plan (`module.stack.module.rds.aws_db_instance.this`), and the import ID is the original identifier:
 
 ```
-aws elasticache create-replication-group --profile qnsc-admin --region ap-southeast-1 --replication-group-id qnsc-runtime-dev-cache-restored --replication-group-description "restored from the pre-8.1 snapshot" --engine valkey --engine-version 7.2 --snapshot-name qnsc-runtime-dev-cache-pre-valkey81-20261020 --cache-node-type <CacheNodeType from describe-replication-groups> --cache-subnet-group-name <CacheSubnetGroupName> --security-group-ids <SecurityGroupIds> --num-cache-clusters <n>
+tofu -chdir=infra/live/develop state rm 'module.stack.module.rds.aws_db_instance.this'
+tofu -chdir=infra/live/develop import 'module.stack.module.rds.aws_db_instance.this' rova-develop
 ```
 
-Wait for the group to be `available`, then change `live/runtime-dev` to use the new endpoint, through a PR merged the same way as step 3 of the RDS rollback. The products read the cache endpoint from `terraform_remote_state`, so they pick up the new endpoint on their next apply. Delete `qnsc-runtime-dev-cache` only after the restored group has served traffic:
+4. Open the revert PR: `engine_version = "17"` (16 for KB), the pg17 parameter group, and the flags back to `false`. Its CI plan must match these counts, and anything else is a stop:
+   - add 1: the `rova-develop-pg17` parameter group, created before the instance moves to it
+   - change 1: the instance's parameter group and any omitted settings that differ from the saved file (tofu fixes them in place on the revert apply)
+   - destroy 1: the orphaned `rova-develop-pg18` parameter group
+   - plus one add and one destroy for each ECS task definition that references the new secret ARN (`api`, `worker`, and `migrator` if present in the plan)
+
+   The instance must not be `must be replaced`. Merge the revert PR only after its CI plan shows these counts. The merge applies it.
+
+If step 2 fails, the upgraded instance is already deleted and its final snapshot (`rova-develop-pg18-failed-final`) is the fallback. Do not delete that snapshot.
+
+### Shared cache
+
+1. Delete the upgraded group and wait until it is gone. ElastiCache has no rename, so the identifier must be freed first:
 
 ```
-aws elasticache delete-replication-group --profile qnsc-admin --region ap-southeast-1 --replication-group-id qnsc-runtime-dev-cache --retain-primary-cluster
+aws elasticache delete-replication-group --profile qnsc-admin --region ap-southeast-1 --replication-group-id qnsc-runtime-dev-cache
+until ! aws elasticache describe-replication-groups --profile qnsc-admin --region ap-southeast-1 --replication-group-id qnsc-runtime-dev-cache >/dev/null 2>&1; do sleep 60; done
 ```
 
-The `--retain-primary-cluster` flag is a precaution: it keeps the primary node while the rest is removed. Confirm the flag against `aws elasticache delete-replication-group help` before running it.
+2. Create a group with the same identifier from the snapshot. Copy each setting from `~/dw/qnsc-runtime-dev-cache-before.json` and `~/dw/qnsc-runtime-dev-cache-001-before.json`: the parameter group (a `valkey7` family group), transit and at-rest encryption, the KMS key, user groups, port, node type, subnet group, security groups, cluster count and failover settings. Wait until `available`:
+
+```
+aws elasticache create-replication-group --profile qnsc-admin --region ap-southeast-1 --replication-group-id qnsc-runtime-dev-cache --replication-group-description "restored from the pre-8.1 snapshot" --engine valkey --engine-version 7.2 --snapshot-name qnsc-runtime-dev-cache-pre-valkey81-20261020 --cache-node-type <CacheNodeType> --cache-subnet-group-name <CacheSubnetGroupName> --security-group-ids <SecurityGroupIds> --num-cache-clusters <n> --cache-parameter-group-name <valkey7 group> --port <Port> --transit-encryption-enabled --at-rest-encryption-enabled --kms-key-id <KmsKeyId>
+until [ "$(aws elasticache describe-replication-groups --profile qnsc-admin --region ap-southeast-1 --replication-group-id qnsc-runtime-dev-cache --query 'ReplicationGroups[0].Status' --output text)" = available ]; do sleep 60; done
+```
+
+Drop the encryption flags if the saved file shows them off. If the saved file shows an auth token, do not pass it on the command line. Put the full request in a JSON file with `--cli-input-json file://~/dw/restore.json`, with the file mode set to `600`, and delete the file after the restore.
+
+3. Import the restored group into the state, then open the revert PR. The address is `module.shared_cache[0].aws_elasticache_replication_group.this[0]`, and the import ID is `qnsc-runtime-dev-cache`:
+
+```
+tofu -chdir=live/runtime-dev state rm 'module.shared_cache[0].aws_elasticache_replication_group.this[0]'
+tofu -chdir=live/runtime-dev import 'module.shared_cache[0].aws_elasticache_replication_group.this[0]' qnsc-runtime-dev-cache
+```
+
+The revert PR sets `node_engine_version = "7.2"` in `live/runtime-dev`. Its CI plan should show no add or destroy. If it shows a change, list each attribute in it before merging. Apps read the same endpoint, so they do not change.
+
+### KB app deploy (step 4 only)
+
+Migration `20261019_85` ships inside the KB app image. If the KB develop stack is rolled back to PG16 and the app still runs the image with `20261019_85`, the migration runs against PG16. Pin or revert the KB app first:
+
+- revert the #249 merge with a PR that restores the KB develop stack, or
+- redeploy the image from before #249 with the backend deploy workflow.
+
+Confirm the deployed image has no `20261019_85` before the RDS restore, and confirm the alembic head afterwards.
 
 ## Later: KB prod and the prod upgrades
 
