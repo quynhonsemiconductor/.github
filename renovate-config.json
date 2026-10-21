@@ -192,7 +192,14 @@
       "automerge": false
     },
     {
-      "description": "Data stores move as ONE PR: PostgreSQL, pgvector and Valkey images in compose files and CI service containers are grouped, so a bump is reviewed against the same version table in docs/TECH_STACK.md. Minor and patch only; a major is its own decision and is never automerged. Terraform's engine_version is NOT in this group: it is bumped by hand in the same change, and each repository's consistency test enforces the major against compose.",
+      "description": "Keep Terraform module sources on their <module>-vX.Y.Z git tags: the tf-modules versioning rule parses the tag, and a SHA pin would hide the version. Renovate's terraform manager already defaults pinDigests to false; this makes it explicit so the org-wide preset can never flip it.",
+      "matchManagers": [
+        "terraform"
+      ],
+      "pinDigests": false
+    },
+    {
+      "description": "Data stores move as ONE PR: PostgreSQL, pgvector and Valkey images in compose files and CI service containers are grouped, so a bump is reviewed against the same version table in docs/TECH_STACK.md. Digest, minor and patch only; a major is its own decision and is never automerged. Declared AFTER the digest-pin automerge rule on purpose: this later match wins, so a postgres/valkey/pgvector digest lands in this group PR instead of automerging solo. Terraform's engine_version is NOT in this group: it is bumped by hand in the same change, and each repository's consistency test enforces the major against compose.",
       "matchDatasources": [
         "docker"
       ],
@@ -208,6 +215,7 @@
         "data-store"
       ],
       "matchUpdateTypes": [
+        "digest",
         "minor",
         "patch"
       ]
