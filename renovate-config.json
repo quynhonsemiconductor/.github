@@ -24,6 +24,7 @@
     "dashboard, no PRs are opened for the five first-party packages, and nothing",
     "fails.",
     "",
+    "pinDigests=true: every update pins to a commit digest; git refs (the shared ci reusables) carry the release in the trailing # vX.Y.Z comment, which Renovate rewrites on bump. This is what retires the moving v1 tag for good: pipelines change only through reviewed Renovate PRs.",
     "REBASING IS DELIBERATELY LAZY (rebaseWhen=conflicted, updateNotScheduled=false).",
     "main-protection requires branches to be up to date, and Renovate's default rebaseWhen=auto",
     "reads that as 'rebase whenever behind', while updateNotScheduled defaults to true, which lets",
@@ -47,6 +48,7 @@
     ":semanticCommits",
     ":dependencyDashboard"
   ],
+  "pinDigests": true,
   "osvVulnerabilityAlerts": true,
   "vulnerabilityAlerts": {
     "labels": [
@@ -190,7 +192,14 @@
       "automerge": false
     },
     {
-      "description": "Data stores move as ONE PR: PostgreSQL, pgvector and Valkey images in compose files and CI service containers are grouped, so a bump is reviewed against the same version table in docs/TECH_STACK.md. Minor and patch only; a major is its own decision and is never automerged. Terraform's engine_version is NOT in this group: it is bumped by hand in the same change, and each repository's consistency test enforces the major against compose.",
+      "description": "Keep Terraform module sources on their <module>-vX.Y.Z git tags: the tf-modules versioning rule parses the tag, and a SHA pin would hide the version. Renovate's terraform manager already defaults pinDigests to false; this makes it explicit so the org-wide preset can never flip it.",
+      "matchManagers": [
+        "terraform"
+      ],
+      "pinDigests": false
+    },
+    {
+      "description": "Data stores move as ONE PR: PostgreSQL, pgvector and Valkey images in compose files and CI service containers are grouped, so a bump is reviewed against the same version table in docs/TECH_STACK.md. Digest, minor and patch only; a major is its own decision and is never automerged. Declared AFTER the digest-pin automerge rule on purpose: this later match wins, so a postgres/valkey/pgvector digest lands in this group PR instead of automerging solo. Terraform's engine_version is NOT in this group: it is bumped by hand in the same change, and each repository's consistency test enforces the major against compose.",
       "matchDatasources": [
         "docker"
       ],
@@ -206,6 +215,7 @@
         "data-store"
       ],
       "matchUpdateTypes": [
+        "digest",
         "minor",
         "patch"
       ]
