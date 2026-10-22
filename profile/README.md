@@ -61,6 +61,7 @@ New here? Start with the engineering docs in this repository:
 - [`docs/TECH_STACK.md`](../docs/TECH_STACK.md) — what we run, layer by layer
 - [`docs/PLATFORM_ARCHITECTURE.md`](../docs/PLATFORM_ARCHITECTURE.md) — request path, sign-in, workers, deploy flow
 - [`docs/REPOSITORY_STRUCTURE.md`](../docs/REPOSITORY_STRUCTURE.md) — which repository owns what
+- [`docs/ORG-GOVERNANCE.md`](../docs/ORG-GOVERNANCE.md) — roles, teams by area, branch protection and the new-repo checklist
 
 ### On the roadmap
 - 🎓 **Learning System** — structured onboarding & on-the-job training for our engineer pipeline
