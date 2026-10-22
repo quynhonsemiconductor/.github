@@ -7,7 +7,7 @@ document describes the MODEL; it never names people, emails or internal hosts.
 
 | Role | Who | Why |
 |---|---|---|
-| Owner (×2) | Two break-glass accounts only | Org-level settings, team creation, ruleset edits. Day-to-day work never uses them. |
+| Owner (×2) | Two people hold Owner, so the org is never locked out | Owner powers are used only for org administration (settings, teams, rulesets); their day-to-day code work goes through teams like everyone else. |
 | Member | Everyone on staff who pushes code | Base membership; no special rights beyond what teams grant. |
 | Outside collaborator | Bots only | Repository-scoped access for automation; never for people. |
 
@@ -39,13 +39,14 @@ Every repository carries the same `main`-protection ruleset:
 - **no force-push, no deletion** of the default branch;
 - **tag protection** for release tags;
 - bypass is granted only to the `merge-bypass` team, and only in
-  `pull_request` mode (it can skip the review gate when a change must ship
-  immediately; it cannot bypass required checks on protected tags).
+  `pull_request` mode: a member can merge a pull request without meeting the
+  ruleset's requirements (the review, and checks if they are configured), but
+  can never push directly to a protected branch or tag.
 
 ## New-repository checklist
 
 1. Name: lowercase kebab-case, product or area first (`<product>` / `<area>-<thing>`).
-2. Visibility: public by default; private only with a stated reason (private repos do not get rulesets on the Free plan — use branch protection instead).
+2. Visibility: public by default; private only with a stated reason — and accept that a private repo gets **no enforced protection** (on the Free plan: neither rulesets nor branch protection), so keep write access minimal and run the gitleaks CI job.
 3. Add `.github/CODEOWNERS` (copy the org template from `.github`, set `* @quynhonsemiconductor/<area>-leads`).
 4. Apply the `main`-protection ruleset.
 5. Settings: squash-merge only, delete head branches, wiki off, Actions token permission read-only.
