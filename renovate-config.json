@@ -185,6 +185,27 @@
       "minimumReleaseAge": "3 days"
     },
     {
+      "description": [
+        "espressif/idf stays on the v6.0.x line: ESP-IDF v6.1 is beta and unsupported by the",
+        "firmware (ADR §2.8), and a container bump changes every product's build toolchain at",
+        "once — so it is never automerged (this later match overrides the digest automerge",
+        "rule above). The image is pinned as tag+digest (`espressif/idf:v6.0.3@sha256:…`):",
+        "without the tag Renovate cannot tell which release a digest belongs to and proposed",
+        "a floating digest that was neither v6.0.3 nor v6.0.",
+        "IMPORTANT for bump PRs: the tag in the image reference must be bumped TOGETHER with",
+        "the digest — Renovate handles this for docker tag+digest pins; a digest-only bump",
+        "that desynchronises the tag must be rejected in review."
+      ],
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "espressif/idf"
+      ],
+      "allowedVersions": "/^v6\\.0\\.\\d+$/",
+      "automerge": false
+    },
+    {
       "description": "Never auto-merge the shared CI reusables: they carry the required-check names, and a bump is a decision. A group automerges only when EVERY update in it does, so a PR that contains a shared CI bump is left for a person. DECLARED AFTER the automerge rules on purpose: Renovate applies packageRules in order and a later match overwrites field by field, so this has to come last among them to win for a shared-CI digest (which the digest rule would otherwise automerge).",
       "matchDepNames": [
         "/^quynhonsemiconductor\\/ci/"
