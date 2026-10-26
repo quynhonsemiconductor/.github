@@ -165,6 +165,17 @@
       ]
     },
     {
+      "description": "Docker image digests and tags (compose images, CI service containers) are grouped apart from the GitHub Actions group. Renovate's github-actions manager also reports CI service-container images (`services.*.image`) under the docker datasource, so the actions group picked up image digest pins and broke the image-consistency test. Matches by datasource, not manager, for that reason. Declared AFTER the github actions rule so it overrides that groupName, and BEFORE the data-stores rule so postgres/pgvector/valkey keep their own group.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "groupName": "docker images",
+      "labels": [
+        "dependencies",
+        "docker"
+      ]
+    },
+    {
       "description": "Auto-merge non-major dev dependencies and digest pins once required checks are green. Majors are excluded by matchUpdateTypes, so this cannot override the major rule above. See the note at the top of this file about what actually has to be true for an automerge to land under main-protection. minimumReleaseAge 3 days: dev dependencies (vite, TypeScript, bundlers) are compiled into the web bundle, so a hijacked patch release would take exactly this path; a few days is the window in which the registry usually yanks one.",
       "matchDepTypes": [
         "devDependencies"
