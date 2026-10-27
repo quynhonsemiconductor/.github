@@ -41,6 +41,7 @@
     "a PR that falls behind main without conflicting is not auto-mergeable until someone updates it",
     "(documented Renovate behaviour). Until (1) is decided, the automerge rules are inert and",
     "harmless: the PR still opens, still runs CI, and is merged by hand.",
+    "TOP-LEVEL MINIMUM RELEASE AGE (3 days). Renovate waits three days after a release before proposing it, matching the 3-day waits the automerge rules already carried; it now also covers the rules that set none (grouping rules, majors). This is belt AND braces with pnpm's own runtime gate: since pnpm 11.1.3 every install re-checks lockfile entries against the repo's minimumReleaseAge and aborts on a too-young entry (app-platform#271 red the moment its regen picked up day-zero releases), and pnpm 11.28's strict mode breaks Renovate's --no-save artifact updates entirely, so repos set minimumReleaseAgeStrict: false and Renovate's own wait is what keeps day-zero releases out of proposals. Vulnerability PRs stay at 0 days (block below overrides the top level), and the first-party rule sets null: our own registry path is the pipeline we run, and pnpm's runtime gate exempts them via each repo's minimumReleaseAgeExclude.",
     "SECURITY FIXES BYPASS THE SCHEDULE AND THE RELEASE-AGE WAIT. osvVulnerabilityAlerts feeds OSV alerts in, and the vulnerabilityAlerts block opens those PRs immediately (schedule: [] beats the Monday-only schedule above), labels them 'security', and sets minimumReleaseAge 0 days FOR VULNERABILITY PRS ONLY — the regular rules' 3-day/14-day waits still apply everywhere else. Automerge behaviour is unchanged by this block: the per-type rules below decide, so a major security fix is never automerged (the major rule refuses), while a dev-dependency security patch may automerge exactly when a normal one would. The 14-day release-age rule has a documented exception for these PRs (docs/TECH_STACK.md): allowed when the release is published via npm/PyPI Trusted Publishing (provenance) from the official repo, and the override is recorded in the PR body."
   ],
   "extends": [
@@ -165,6 +166,17 @@
       ]
     },
     {
+      "description": "Docker image digests and tags (compose images, CI service containers) are grouped apart from the GitHub Actions group. Renovate's github-actions manager also reports CI service-container images (`services.*.image`) under the docker datasource, so the actions group picked up image digest pins and broke the image-consistency test. Matches by datasource, not manager, for that reason. Declared AFTER the github actions rule so it overrides that groupName, and BEFORE the data-stores rule so postgres/pgvector/valkey keep their own group.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "groupName": "docker images",
+      "labels": [
+        "dependencies",
+        "docker"
+      ]
+    },
+    {
       "description": "Auto-merge non-major dev dependencies and digest pins once required checks are green. Majors are excluded by matchUpdateTypes, so this cannot override the major rule above. See the note at the top of this file about what actually has to be true for an automerge to land under main-protection. minimumReleaseAge 3 days: dev dependencies (vite, TypeScript, bundlers) are compiled into the web bundle, so a hijacked patch release would take exactly this path; a few days is the window in which the registry usually yanks one.",
       "matchDepTypes": [
         "devDependencies"
@@ -272,7 +284,7 @@
       "allowedVersions": "/-pg18$/"
     },
     {
-      "description": "First-party packages: their own group, never auto-merged. They are published from app-platform by this org and released together, so a bump to them is a platform decision — burying one in a group with a third-party patch loses that signal. THIS RULE MUST STAY LAST. Renovate applies packageRules in order and a later match overwrites an earlier one field by field. While this rule sat FIRST, the generic 'npm production (non-major)' rule above matched the same packages and overwrote its groupName, so @quynhonsemiconductor/identity and platform-cache were both proposed inside a 46-package third-party group in rova and opshub — the exact outcome this rule exists to prevent. It was invisible because the group PR is still opened and still green; only the dashboard's package list shows where they ended up.",
+      "description": "First-party packages: their own group, never auto-merged. They are published from app-platform by this org and released together, so a bump to them is a platform decision — burying one in a group with a third-party patch loses that signal. THIS RULE MUST STAY LAST. Renovate applies packageRules in order and a later match overwrites an earlier one field by field. While this rule sat FIRST, the generic 'npm production (non-major)' rule above matched the same packages and overwrote its groupName, so @quynhonsemiconductor/identity and platform-cache were both proposed inside a 46-package third-party group in rova and opshub — the exact outcome this rule exists to prevent. It was invisible because the group PR is still opened and still green; only the dashboard's package list shows where they ended up. minimumReleaseAge null: the org preset now waits 3 days top-level; first-party packages are exempt (published by our own pipeline, and pnpm's runtime gate excludes them per repo).",
       "matchPackageNames": [
         "/^@quynhonsemiconductor\\//"
       ],
@@ -281,7 +293,8 @@
       "labels": [
         "dependencies",
         "platform"
-      ]
+      ],
+      "minimumReleaseAge": null
     }
   ],
   "prConcurrentLimit": 5,
@@ -290,5 +303,6 @@
     "before 9am on monday"
   ],
   "rebaseWhen": "conflicted",
-  "updateNotScheduled": false
+  "updateNotScheduled": false,
+  "minimumReleaseAge": "3 days"
 }
