@@ -48,13 +48,13 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: quynhonsemiconductor/ci/actions/scan-secrets@v1
+      - uses: quynhonsemiconductor/ci/actions/scan-secrets@4cacc94493580e0514d343687beb23415509c9f7 # v1
 
   actions-security:
     permissions:
       contents: read
       security-events: write
-    uses: quynhonsemiconductor/ci/.github/workflows/actions-security.yml@v1
+    uses: quynhonsemiconductor/ci/.github/workflows/actions-security.yml@4cacc94493580e0514d343687beb23415509c9f7 # v1
     with:
       blocking: true
       combine: true # actionlint + zizmor as ONE job; the required check is `actions-security / Workflow security (actionlint, zizmor)`
