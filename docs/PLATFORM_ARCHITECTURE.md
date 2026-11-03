@@ -13,27 +13,28 @@ The diagrams describe Rova and OpsHub, which share one shape. The Knowledge Base
 flowchart LR
   user([Browser])
   subgraph cf[Cloudflare]
-    edge[Edge: DNS, WAF, rate limiting]
-    pages[Pages: static SPA]
-    fn[Pages Function: /v1 and /api/auth proxy]
+    edge[Edge: DNS, WAF, rate limiting, Access]
     tunnel[Tunnel]
   end
-  subgraph aws[AWS: ECS Fargate task]
-    cfd[cloudflared sidecar]
+  subgraph k3s[On-prem Kubernetes (k3s)]
+    argocd[ArgoCD: syncs the desired state]
     api[api: NestJS on Fastify]
-    otel[OTel collector sidecar]
-    logs[FireLens log router]
+    web[web: SPA served as an image]
+    worker[worker: relays and scheduled jobs]
+    migrator[[migrator: one-shot Job]]
+    pg[(PostgreSQL: CNPG)]
+    vk[(Valkey)]
+    obj[(Object storage)]
   end
-  worker[worker task: relays and scheduled jobs]
-  migrator[[migrator: one-shot task]]
-  pg[(PostgreSQL on RDS)]
-  vk[(Valkey)]
-  obj[(Object storage: S3 or R2)]
+  ghcr[GHCR: images, digest-pinned]
+  gitops[gitops repo: values and charts]
   graf[Grafana Cloud]
   entra[Microsoft Entra ID]
+  kv[Azure Key Vault]
 
-  user --> edge --> pages
-  pages --> fn --> tunnel --> cfd --> api
+  user --> edge --> tunnel
+  tunnel -->|/v1, /api/auth| api
+  tunnel -->|everything else| web
   api --> pg
   api --> vk
   api --> obj
@@ -42,34 +43,33 @@ flowchart LR
   migrator --> pg
   user -. sign-in redirect .-> entra
   api -. code exchange .-> entra
-  api --> otel --> graf
-  api --> logs --> graf
-  worker --> otel
+  api --> graf
+  worker --> graf
+  ghcr --> argocd
+  gitops --> argocd
+  argocd --> api
+  argocd --> web
+  argocd --> worker
+  kv -->|External Secrets| api
 ```
+
+There is **no cloud load balancer and no inbound firewall rule**. `cloudflared` dials *out* to Cloudflare from
+inside the cluster, so nothing is exposed directly; the tunnel is the only ingress.
+
 
 There is **no load balancer**. Every request already arrives through Cloudflare, so the API task runs a `cloudflared`
 sidecar that dials *out* to Cloudflare; nothing in the cloud accepts inbound connections from the internet.
 
 ## The request path
 
-1. The browser loads the single-page app from **Cloudflare Pages**. Static assets never touch AWS.
-2. The SPA calls **relative** paths (`/v1/...`, and `/api/auth/...` for sign-in). It is deliberately same-origin with
-   its API: the session cookie is set on the SPA's own host and cannot be set cross-site. The SPA is never given the
-   API's address.
-3. A **Pages Function** receives those paths and proxies them to the API origin. It forwards an allow-list of request
-   headers (never a visitor's own `x-forwarded-for` or Cloudflare headers), does **not** follow redirects (so the
-   sign-in redirect and its `Set-Cookie` reach the browser untouched), and adds the visitor's real address signed with
-   a shared key and a timestamp. A Function that is missing its origin or key answers 500 and names it; it never
-   forwards unsigned.
-4. The request travels the **Tunnel** to the `cloudflared` sidecar in the API task and reaches the API on localhost.
-5. The API's `clientIp()` verifies the signature before it trusts the address, so the rate limiter, the access log and
-   idempotency key on the real visitor, not on a Cloudflare address shared by everyone. If the signature is missing
-   or wrong it falls back to the connecting address and counts a rejection, which alerts.
-6. Mutating requests carry a CSRF token bound to the session. In OpsHub and Rova every route must declare how it is
+1. The browser resolves a product host through **Cloudflare**. The edge routes `/v1/*`, `/api/auth/*` and a readiness
+   path to the API and everything else to the web deployment, both over the same **tunnel**.
+2. The SPA calls **relative** paths (`/v1/...`, `/api/auth/...`). It is deliberately same-origin with its API: the
+   session cookie is set on the SPA's own host and cannot be set cross-site. The SPA is never given the API's address.
+3. The request reaches the API pod from `cloudflared`; API services are ClusterIP-only. Sign-in is Entra ID; the
+   browser holds no token, only an opaque session cookie.
+4. Mutating requests carry a CSRF token bound to the session. In OpsHub and Rova every route must declare how it is
    authorised, and a test fails the build for a route that does not.
-
-Edge governance (WAF rules, rate limits, the zone's DNS) is zone-level and lives in the `infra` repository, not in any
-product.
 
 ## Sign-in and sessions
 
@@ -80,21 +80,21 @@ keeps the session on the server.
 sequenceDiagram
   autonumber
   participant B as Browser (SPA)
-  participant F as Pages Function
+  participant T as Edge route (tunnel)
   participant A as API (identity)
   participant E as Microsoft Entra ID
-  B->>F: POST /api/auth/sign-in/social
-  F->>A: forward (signed address)
+  B->>T: POST /api/auth/sign-in/social
+  T->>A: forward
   A-->>B: authorization URL (code + PKCE, state)
   B->>E: authenticate
   E-->>B: redirect to the SPA origin with a code
-  B->>F: GET /api/auth/callback/...
-  F->>A: forward, do not follow redirects
+  B->>T: GET /api/auth/callback/...
+  T->>A: forward, do not follow redirects
   A->>E: exchange the code (server side, with the client secret)
   A->>A: check tenant and staff domain, reconcile roles from Entra app roles, create the session row
   A-->>B: 302 and Set-Cookie (opaque, httpOnly session cookie)
-  B->>F: GET /v1/... with the cookie
-  F->>A: forward
+  B->>T: GET /v1/... with the cookie
+  T->>A: forward
   A->>A: session lookup (cache, then Postgres), then authorisation
   A-->>B: response
 ```
@@ -169,52 +169,51 @@ of bug, and the rule stays the same on-prem.
 ```mermaid
 flowchart TD
   pr[Pull request] --> checks{Required checks}
-  checks -->|lint, types, unit and integration tests, build, OpenAPI contract, security scans, local quickstart| review[Code-owner review]
+  checks -->|lint, types, tests, build, OpenAPI contract, security scans, local quickstart| review[Code-owner review]
   review --> merge[Squash merge to main]
   merge --> dev
   merge --> rp[release-please opens or updates the release PR]
   rp -->|merge it| tag[Tag vX.Y.Z]
   tag --> prod
 
-  subgraph dev[develop: automatic]
-    d1[Infrastructure apply] --> d2[Build amd64 + arm64 image, attest, push to ECR]
-    d2 --> d3[Run the migrator task]
-    d3 --> d4[Roll api and worker services]
-    d4 --> d5[Readiness gate]
+  subgraph dev[dev: automatic]
+    d1[Build once on main: image + SBOM/provenance, push to GHCR] --> d2[Bot opens the gitops dev bump PR]
+    d2 --> d3[CI writes tags.dev.yaml: tag + digest; auto-merge]
+    d3 --> d4[ArgoCD syncs dev; migrator PreSync Job, then api/worker/web]
+    d4 --> d5[Readiness checks]
   end
-  subgraph prod[production: behind an approval]
-    p1[Approve the production environment] --> p2[Infrastructure apply]
-    p2 --> p3[Promote the SAME image built on main]
-    p3 --> p4[Run the migrator task]
-    p4 --> p5[Roll api and worker services]
-    p5 --> p6[Readiness gate]
+  subgraph prod[prod: one human gate]
+    p1[release-retag verifies the digest attestation and adds vX.Y.Z to the SAME digest] --> p2[Bot opens the gitops prod PR with the changelog and dev health]
+    p2 --> p3[Approver merges the gitops PR — the only prod gate]
+    p3 --> p4[ArgoCD syncs prod; migrator PreSync Job, then api/worker/web]
+    p4 --> p5[Readiness checks]
   end
 ```
+
 
 - **Pull requests** run the product's CI. A single aggregate job (`Backend CI required`, `Web CI required`) is what the
   branch rules require, so a job that was skipped or cancelled fails the gate instead of passing it. The infrastructure
   plan is posted on the PR and refuses to delete or replace DNS and identity resources unless a human opts in.
-- **`develop`** deploys on every merge to `main`: infrastructure first, then the image, the migration, the rollout and
-  a readiness probe. The deploy waits for the infrastructure apply of the *same commit*, so an app never rolls ahead of
-  the infrastructure it needs.
-- **`production`** deploys from a release tag only. The image is the one built on `main`; nothing is rebuilt for
-  production. A required reviewer approves the `production` environment before anything applies. A product's production environment
-  can be provisioned but idle (services at zero tasks, cache disabled) until its go-live; the pipeline is the same.
-- **Web** is built and published to Cloudflare Pages by a shared reusable workflow; the Pages project is an output of
-  the product's infrastructure stack.
-- **Database migrations** run as a gated one-shot task *before* traffic moves. Migrations must be backward compatible
-  with the previous release for the minutes both run.
+- **dev** deploys on every merge to `main`: the images are built once, scanned and attested, and a bot opens a gitops
+  PR that sets the tag and digest in `values/<product>/tags.dev.yaml`; auto-merge moves ArgoCD. Nothing is rebuilt per
+  environment.
+- **prod** deploys from a release tag only, and the tag rebuilds nothing: CI verifies the digest's attestation and adds
+  the version tag to the SAME digest, then opens a gitops prod PR with the changelog and the dev health. Merging that PR
+  is the one approval. A product's prod Application can exist but stay idle until its go-live.
+- **Web** is an image in the cluster, synced by ArgoCD like the API. The two landing sites stay on Cloudflare Pages.
+- **Database migrations** run as an ArgoCD PreSync Job *before* traffic moves (expand/contract only, so a rollback
+  revert is safe). A CNPG backup runs before a prod sync that contains a migration.
 - **Shared code moves by version.** App packages go to GitHub Packages and reach products as one grouped Renovate PR;
-  Terraform modules are pinned by git tag; workflows are pinned to the `ci` major version. A fix in a shared repository
-  reaches every product through a normal, reviewed bump.
+  modules are pinned by git tag; workflows and actions are pinned to a full `ci` SHA with a `# vX.Y.Z` comment. A fix in
+  a shared repository reaches every product through a normal, reviewed bump.
 
 ## Guardrails in one place
 
 | Concern | How it is handled |
 | :------ | :---------------- |
-| Cloud credentials | None stored. GitHub Actions assume short-lived roles through OIDC; people use MFA-protected users that hold no permissions and assume short-lived roles |
-| Secrets | Created empty by OpenTofu, set by a person out of band, injected into tasks by reference; never in state, code or logs |
+| Machine credentials | None stored. The on-prem estate has no cloud to authenticate to: CI reaches GHCR with the job token and gitops with a GitHub App token scoped to one repository |
+| Secrets | Values live in Azure Key Vault and reach pods through External Secrets; OpenTofu owns shape and wiring, never values |
 | Database access | The application connects as a restricted role; migrations run as the owner; a CI job runs the whole test suite as the restricted role so a missing grant fails CI, not production |
 | Supply chain | Immutable image tags, SLSA provenance attestation, image and dependency scans, workflow linting, pinned actions |
-| Visibility | Telemetry and logs in Grafana Cloud; alarms for infrastructure signals in CloudWatch; every alert links to a runbook in the product repository |
-| Blast radius | Each product has its own database, services and secrets bundle (develop shares one cache node, separated by database index and key prefix); shared pieces are code and modules, not runtime |
+| Visibility | Telemetry and logs in Grafana Cloud; ArgoCD and CNPG alerts; every alert links to a runbook in the product repository |
+| Blast radius | Each product has its own database, workloads and secret bundle; shared pieces are code and modules, not runtime |

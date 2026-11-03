@@ -81,7 +81,7 @@ New here? Start with the engineering docs in this repository:
 ![Grafana](https://img.shields.io/badge/Grafana-F46800?style=flat-square&logo=grafana&logoColor=white)
 
 We build with **TypeScript** (NestJS and React) across the web and API, **Python** for the Knowledge Base,
-**OpenTofu** for infrastructure on AWS and Cloudflare, and ship through **GitHub Actions** with shared reusable
+**OpenTofu** for the Cloudflare edge and the on-premises estate, **Kubernetes** for the runtime, and ship through **GitHub Actions** with shared reusable
 workflows. See [`docs/TECH_STACK.md`](../docs/TECH_STACK.md).
 
 ---
