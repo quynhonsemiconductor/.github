@@ -15,9 +15,9 @@ role; you do not need all of these.
 | You are | You need |
 | :------ | :------- |
 | Everyone | A **GitHub** account in the `quynhonsemiconductor` organisation and a **Microsoft 365** account on the company tenant. The products sign you in with Microsoft Entra ID, so the same account opens the apps you are about to run and test |
-| Product engineer | Write access to the product repositories you will work in, and a **Grafana Cloud** account to read dashboards, logs and traces for `develop` and `production` |
-| Platform / infrastructure engineer | In addition: **AWS** access (a personal IAM user that carries your MFA device and holds no permissions itself, plus the role your job needs: read-only with a managed session to the `develop` database, or administrator), a role in the **Cloudflare** account, edit rights in Grafana, and membership of the reviewer group that approves `production` deploys |
-| Anyone who needs to reach a deployed `develop` app | A role in that product (roles come from Microsoft Entra app roles, which a tenant administrator assigns) |
+| Product engineer | Write access to the product repositories you will work in, and a **Grafana Cloud** account to read dashboards, logs and traces for `dev` and `prod` |
+| Platform / infrastructure engineer | In addition: a role in the **Cloudflare** account, a role in the **Proxmox** estate, membership of the Entra groups that hold the **Azure Key Vault** and Kubernetes doors, edit rights in Grafana, and membership of the reviewer group that approves gitops prod promotions |
+| Anyone who needs to reach a deployed `dev` app | A role in that product (roles come from Microsoft Entra app roles, which a tenant administrator assigns) |
 
 Never share an account, and never ask a colleague to paste a token or a secret to you in chat. If you need access to a
 secret, ask the owner to add you to the process that holds it.
@@ -31,9 +31,9 @@ Versions are the ones the repositories pin; if a repo disagrees with this page, 
 | Git and the GitHub CLI (`gh`) | current | You will use `gh auth token` for package access and `gh pr` for pull requests |
 | Node.js | **24** (every TypeScript repository has an `.nvmrc`) | Backends, web apps, tooling |
 | pnpm | **10 or 11**. `rova` and `app-platform` pin pnpm 11; pnpm fetches the pinned version for you | Package manager for the TypeScript repositories |
-| Docker with Compose v2 | current | The local stacks: PostgreSQL, Valkey, LocalStack (S3), an OpenTelemetry collector |
+| Docker with Compose v2 | current | The local stacks: PostgreSQL, Valkey, Garage (S3-compatible), an OpenTelemetry collector |
 | OpenTofu | **1.9.x** (CI pins 1.9.1; `infra-template` has an `.opentofu-version`) | Only if you touch infrastructure code |
-| AWS CLI v2 | current | Only for platform work: assume your role with MFA |
+| `kubectl`, `crane` and `op` | current | Only for platform work: cluster access through the Entra-gated kubeconfig, GHCR images, and secrets from 1Password |
 | Python 3.11+ with Poetry | | Only for `qnsc-kb-backend` work outside Docker; its README shows the Docker-only route |
 | Node.js 20+ and npm | | `qnsc-kb-frontend` uses npm |
 
@@ -90,16 +90,18 @@ A few things hold for all of them:
 4. **A code owner approves.** Every pull request needs at least one approving review from a code owner, and you do not
    merge your own.
 5. **Squash merge.** One pull request becomes one commit, whose subject is the PR title.
-6. **`develop` deploys by itself** from that merge: infrastructure first, then the image, the database migration and the
-   rollout, then a readiness probe. Watch the *Deploy* workflow run on your commit; it is a few minutes.
+6. **`dev` deploys by itself** from that merge: the image is built once, scanned and attested, a bot writes its digest
+   into the gitops dev values and auto-merges; ArgoCD then runs the migration Job and rolls the workloads. Watch the
+   *GHCR · Publish* run on your commit; it is a few minutes.
 7. **release-please** keeps a release pull request open (`chore: release ...`) with the next version and changelog.
    Merging it creates the `vX.Y.Z` tag.
-8. **`production` deploys from the tag**, using the image already built on `main`, after a reviewer approves the
-   `production` environment. Nothing reaches production without that approval.
+8. **`prod` moves only on a tag, and the tag rebuilds nothing.** CI verifies the image digest's attestation, adds the
+   version tag to the SAME digest, and opens a gitops promotion PR with the changelog. A reviewer merges that PR; that
+   merge is the one production approval.
 
-`develop` is for you to look at; `production` is for everyone else. A change that is safe to merge but not safe to show
-users ships behind a flag or unrouted. Database migrations run before traffic moves, so write them to work with the
-*previous* release for the minutes both are live.
+`dev` is for you to look at; `prod` is for everyone else. A change that is safe to merge but not safe to show users
+ships behind a flag or unrouted. Database migrations run before traffic moves (expand/contract), so write them to work
+with the *previous* release for the minutes both are live.
 
 If your change touches a shared repository (`app-platform`, `ci`, `tf-modules`), the pull request there is the real change;
 products pick it up later by version. See [REPOSITORY_STRUCTURE.md](./REPOSITORY_STRUCTURE.md#how-shared-code-is-versioned).
@@ -127,6 +129,6 @@ products pick it up later by version. See [REPOSITORY_STRUCTURE.md](./REPOSITORY
 1. Get the access in section 1; run `gh auth status` and `pnpm -v`.
 2. Run OpsHub locally (section 4), sign in as two different seeded users and notice what each can and cannot do.
 3. Read the **Local stack** README and one runbook for an alert in the same repository.
-4. Pick a small issue or a documentation fix, take it through all eight steps of section 5, and watch the `develop`
+4. Pick a small issue or a documentation fix, take it through all eight steps of section 5, and watch the `dev`
    deploy.
 5. Open Grafana, find the product's dashboard, and find your request in the logs.

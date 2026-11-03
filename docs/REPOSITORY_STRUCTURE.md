@@ -36,9 +36,9 @@ not listed here.
 | Repository | What it is | How products consume it |
 | :--------- | :--------- | :---------------------- |
 | [`app-platform`](https://github.com/quynhonsemiconductor/app-platform) | Shared application packages: `identity`, `observability`, `platform-runtime`, `platform-http`, `platform-cache`, `platform-db`, `platform-jobs`, `platform-mail` | npm packages on GitHub Packages, one tag per package (`<package>-vX.Y.Z`); Renovate opens one grouped PR per product |
-| [`ci`](https://github.com/quynhonsemiconductor/ci) | Reusable GitHub Actions workflows and composite actions: build, scan, attest, deploy, release, the aggregate "required" gates | `uses: quynhonsemiconductor/ci/...@v1` |
-| [`tf-modules`](https://github.com/quynhonsemiconductor/tf-modules) | Versioned OpenTofu modules: network, RDS, cache, ECS service, secrets, Cloudflare Pages, tunnel, edge rules, observability agents and alert rules | `?ref=<module>-vX.Y.Z` |
-| [`infra`](https://github.com/quynhonsemiconductor/infra) | Platform-level infrastructure: human access to AWS, the security baseline, shared network, Cloudflare zone governance, the Grafana Cloud stack, shared object storage, remote state | Read through remote state; products do not edit it |
+| [`ci`](https://github.com/quynhonsemiconductor/ci) | Reusable GitHub Actions workflows and composite actions: build-once publish, scan, attest, retag-on-release, promote, the aggregate "required" gates | `uses: quynhonsemiconductor/ci/...@<full-sha>  # vX.Y.Z` (the `v1` tag is frozen) |
+| [`tf-modules`](https://github.com/quynhonsemiconductor/tf-modules) | Versioned OpenTofu modules for what is left outside Kubernetes: Cloudflare edge, R2, Turnstile, DNS records and Pages (the cloud-only modules were retired with the cloud exit) | `?ref=<module>-vX.Y.Z` |
+| [`infra`](https://github.com/quynhonsemiconductor/infra) | Platform-level infrastructure: Cloudflare edge and tunnels, Entra identity and Key Vault, the Proxmox VMs and backups, GitHub settings, observability, remote state | Read through remote state; products do not edit it |
 | [`infra-template`](https://github.com/quynhonsemiconductor/infra-template) | The starting skeleton for a new product's infrastructure repository | Cloned once |
 | [`gitops`](https://github.com/quynhonsemiconductor/gitops) | Desired state for the Kubernetes estate: one Helm chart, one values file per product and environment, ArgoCD applications | CI bumps image tags here; see [Direction](./TECH_STACK.md#direction) |
 | [`.github`](https://github.com/quynhonsemiconductor/.github) | This repository: the organisation profile, issue and PR templates, `CONTRIBUTING`, `SECURITY`, the Renovate preset, these docs | Inherited automatically |
@@ -68,12 +68,10 @@ not listed here.
 ├── apps/
 │   ├── api/            NestJS HTTP API (one process)
 │   ├── worker/         NestJS background process: relays, scheduled jobs (no HTTP)
-│   └── web/            React + Vite SPA, and apps/web/functions: the Cloudflare Pages Function proxy
+│   └── web/            React + Vite SPA, built as its own image and served in the cluster
 ├── libs/               shared backend code: platform glue and one module per domain area
 ├── db/                 Drizzle schema, SQL migrations, seeds
-├── infra/
-│   ├── live/{_shared,develop,prod}/    the values for each environment
-│   └── modules/stack/                  the one composition module both environments call
+├── deploy/             image build inputs only (the Dockerfile); runtime desired state lives in gitops
 ├── docs/runbooks/      operational runbooks; docs/runbooks/alerts/ one page per alert
 ├── test/               cross-cutting specs and end-to-end tests
 ├── .github/workflows/  thin callers of the reusable workflows in `ci`
@@ -94,14 +92,17 @@ not listed here.
 | :----------- | :------------- | :---------------------- |
 | App packages | per-package semver, tag `<package>-vX.Y.Z`, released by release-please | `package.json` (caret ranges) |
 | Terraform modules | per-module tag `<module>-vX.Y.Z` | the `?ref=` on each `source` |
-| CI workflows and actions | a moving major tag `v1` | `uses: ...@v1` |
+| CI workflows and actions | a release tag, pinned as a full SHA plus a `# vX.Y.Z` comment (`v1` is FROZEN at v1.22) | `uses: ...@<full-sha>  # vX.Y.Z` |
 | Products | one semver per repository, tag `vX.Y.Z`; the tag is what deploys to production | release-please |
 
 ## Where infrastructure lives (and is going)
 
-Platform-wide infrastructure is in `infra`. Each product still keeps its own `infra/` directory holding its cluster,
-database, cache and deploy roles; that pattern exists three times and has drifted, and the plan is to move each product
-onto one shared product-profile module in `infra`, one at a time. The rule to follow meanwhile is in `infra`'s
+Platform-wide infrastructure is in `infra`: the Cloudflare edge and tunnels, Entra identity and Azure Key Vault, the
+Proxmox VMs and PBS backups, GitHub organisation settings and the observability stacks. The Kubernetes desired state —
+one chart per product, per-environment values, the ArgoCD applications — is in `gitops`. Product repositories carry no
+infrastructure: they build images and open the gitops PR.
+
+The rule to follow is in `infra`'s
 [`docs/repository-boundaries.md`](https://github.com/quynhonsemiconductor/infra/blob/main/docs/repository-boundaries.md):
 read it before adding infrastructure anywhere.
 

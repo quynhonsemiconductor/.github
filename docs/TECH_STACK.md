@@ -18,18 +18,18 @@ not running yet is in [Direction](#direction).
 | Backend language | TypeScript 6 on Node.js 24 | `.nvmrc` in every TypeScript repo says `24` |
 | Backend framework | NestJS 11 on Fastify 5 | Rova and OpsHub: one NestJS monorepo each, an `api` process and a `worker` process |
 | ORM / migrations | Drizzle ORM 0.45, SQL migrations run by a one-shot `migrator` task before each rollout | |
-| Web | React 19, Vite 8, TanStack Router and Query, Tailwind CSS 4, a typed OpenAPI client | An SPA per product, served from Cloudflare Pages |
+| Web | React 19, Vite 8, TanStack Router and Query, Tailwind CSS 4, a typed OpenAPI client | An SPA per product, built as its own image and served in the cluster |
 | Knowledge Base backend | Python 3.11+ (3.13 in the image), FastAPI, SQLAlchemy + Alembic, Celery workers and beat, pgvector for hybrid retrieval | `qnsc-kb-backend`; Poetry for dependencies. It does not use the shared TypeScript packages |
-| Knowledge Base frontend | React, TypeScript, Vite, Tailwind CSS (npm, Node 20+) | `qnsc-kb-frontend`; also on Cloudflare Pages |
-| Marketing site | Astro 5, Tailwind CSS 4, static output, English and Vietnamese | `qnsc-landing`, Cloudflare Pages |
+| Knowledge Base frontend | React, TypeScript, Vite, Tailwind CSS (npm, Node 20+) | `qnsc-kb-frontend` |
+| Marketing site | Astro 5, Tailwind CSS 4, static output, English and Vietnamese | `qnsc-landing`, still on Cloudflare Pages |
 
 ### Data
 
 | Layer | What we run | Notes |
 | :---- | :---------- | :---- |
-| Relational | PostgreSQL on Amazon RDS, major 18 (target; see the version table below) | Local stacks and CI use the same major and minor as RDS, as container images. Knowledge Base uses pgvector on top of PostgreSQL |
-| Cache / coordination | Valkey (Redis-compatible) on ElastiCache: `develop` shares one node between products; a product's production stack uses the module's serverless mode, and stays disabled until the product goes live | Used for sessions, rate limits, pub/sub wake-ups and the cross-pod lock behind scheduled jobs. The Knowledge Base's Celery broker and cache run Valkey too (the Redis protocol) |
-| Object storage | S3 or Cloudflare R2 (S3-compatible), chosen per product by configuration | Uploads go browser → presigned URL → bucket. Local development uses LocalStack |
+| Relational | PostgreSQL 18.6 under Cloud Native PostgreSQL (CNPG) on the k3s cluster | Local stacks and CI use the same major and minor, as container images. Knowledge Base uses pgvector on top of PostgreSQL |
+| Cache / coordination | Valkey (Redis-compatible) in the cluster; one instance per product and environment | Used for sessions, rate limits, pub/sub wake-ups and the cross-pod lock behind scheduled jobs. The Knowledge Base's Celery broker and cache run Valkey too (the Redis protocol) |
+| Object storage | S3-compatible object storage (Garage on-prem, Cloudflare R2 at the edge) chosen per product by configuration | Uploads go browser → presigned URL → bucket. Local development uses Garage too |
 | Queues | Postgres tables (the transactional outbox) read by worker relays | See [Workers and outboxes](./PLATFORM_ARCHITECTURE.md#workers-and-outboxes) |
 
 **Data-store versions.** One version per engine, the same in every place it runs. Renovate
@@ -38,14 +38,14 @@ only, and keeps Valkey on the 8.1 line. Terraform's `engine_version` is **not** 
 by hand in the same change, and each repository's consistency test fails until its major matches the compose
 pin. This is decided, not an oversight.
 
-| Store | Local compose and CI | Test containers (app-platform) | AWS target | AWS today |
-| :---- | :------------------- | :----------------------------- | :--------- | :-------- |
-| PostgreSQL | `postgres:18.6` (Debian, not Alpine: glibc collation, as on RDS) for OpsHub and Rova | `postgres:18.6` (Debian) | major 18 (currently 18.6) | RDS 17.9 (OpsHub, Rova prod and develop); 16.13 (Knowledge Base, develop) |
-| pgvector | `pgvector/pgvector:0.8.2-pg18` (Knowledge Base). **Exception:** this image is PostgreSQL 18.4, not 18.6 (no pgvector image pins 18.6); same major | n/a | pgvector 0.8.2 (RDS 18.4 and later ship it) | 0.8.1 on RDS 16 |
-| Valkey | `valkey/valkey:8.1.10-alpine` | `valkey/valkey:8.1.10-alpine` | ElastiCache `8.1` (same engine as local and CI) | ElastiCache 7.2.6 (runtime-dev, rova prod) |
+| Store | Local compose and CI | Test containers (app-platform) | Cluster |
+| :---- | :------------------- | :----------------------------- | :------ |
+| PostgreSQL | `postgres:18.6` (Debian, not Alpine: glibc collation, matching the image CNPG runs) for OpsHub and Rova | `postgres:18.6` (Debian) | CNPG 1.30 / PostgreSQL 18.6 |
+| pgvector | `pgvector/pgvector:0.8.2-pg18` (Knowledge Base). **Exception:** this image is PostgreSQL 18.4, not 18.6 (no pgvector image pins 18.6); same major | n/a | pgvector 0.8.2 |
+| Valkey | `valkey/valkey:8.1.10-alpine` | `valkey/valkey:8.1.10-alpine` | Valkey 8.1 |
 
-Valkey is 8.1 everywhere. ElastiCache's "8.2" is open-source Valkey 8.1 plus the valkey-search module, so it is not a
-separate target, and no `valkey/valkey:8.2` image is published. Do not "upgrade" to 8.2.
+Valkey is 8.1 everywhere. A future "8.2" that is open-source Valkey 8.1 plus the valkey-search module is not a separate
+target, and no `valkey/valkey:8.2` image is published. Do not "upgrade" to 8.2.
 
 ### Identity
 
@@ -96,43 +96,43 @@ There is also a private, never-published `testing` package (the testcontainers h
 | Layer | What we run | Notes |
 | :---- | :---------- | :---- |
 | Infrastructure as code | OpenTofu 1.9, state in a shared remote bucket with a lock table | Versioned modules in `tf-modules`, pinned by git tag. CI refuses an apply that would delete or replace DNS or identity resources unless a human opts in |
-| Compute | Amazon ECS on Fargate (Graviton/arm64); OpsHub and Rova build each image for amd64 and arm64 | An `api` service, a `worker` service and a one-shot `migrator` task per product and environment. Images live in ECR with immutable tags |
-| Ingress | Cloudflare: DNS, WAF and rate limiting for the company zone, Cloudflare Tunnel to the API, Turnstile available at the edge | There is **no load balancer** in front of the products. A `cloudflared` sidecar in the API task dials out to Cloudflare |
-| Web hosting | Cloudflare Pages, with a Pages Function that proxies `/v1/*` and `/api/auth/*` to the API | Static assets and the proxy ship from the same project |
-| AWS foundation | One AWS account with a security baseline (CloudTrail, Config, GuardDuty, Access Analyzer) and one shared network per environment | Owned by the `infra` repo |
-| Human access to AWS | An IAM user per person that holds **no permissions of its own** and exists to carry an MFA device; people assume short-lived roles (developer: read-only plus a managed session to reach the `develop` database; administrator), only with MFA, and every assumption is logged | Machines never use these: CI authenticates through GitHub OIDC. Federating the existing Entra tenant to IAM is the stated next step once the team outgrows per-person users |
-| CI → cloud trust | GitHub OIDC; no cloud credentials are stored in GitHub | |
-| Environments | `develop` and `production` | `develop` deploys from every merge to `main`; `production` from a release tag, behind an approval |
+| Compute | k3s in the on-prem Proxmox estate, amd64; ArgoCD syncs the desired state from `gitops` | An `api` Deployment, a `worker` Deployment, a site-specific `web` Deployment and a `migrator` PreSync Job per product and environment. Images live in GHCR, pinned by digest |
+| Ingress | Cloudflare: DNS, WAF, rate limiting, Access and a Tunnel into the cluster, Turnstile available at the edge | There is **no inbound firewall rule and no load balancer**. `cloudflared` dials out to Cloudflare and routes `/v1` and `/api/auth` to the API and everything else to the web deployment |
+| Web hosting | The SPA is an image in the cluster, served behind the same tunnel. Cloudflare still caches hashed `/assets/*` | The two marketing landing sites remain on Cloudflare Pages |
+| On-prem foundation | Proxmox host, k3s nodes and VMs, PBS backups, the CNPG operator, ArgoCD, External Secrets | Owned by `infra` and `gitops` |
+| Human access | Entra ID and Cloudflare Access in front of every admin door; `kubectl` and `tofu` use short-lived credentials obtained locally | Machines hold no standing cloud credential: CI uses the GitHub job token and a GitHub App token scoped to `gitops` |
+| CI → registry and gitops | The GitHub job token for GHCR; a GitHub App token scoped to `gitops` for the bump PRs. No long-lived cloud credential is stored in GitHub | |
+| Environments | `dev` and `prod` | `dev` follows every merge to `main` automatically; `prod` moves only when a human merges the gitops promotion PR |
 
 ### Observability
 
 | Layer | What we run | Notes |
 | :---- | :---------- | :---- |
-| Telemetry | OpenTelemetry SDKs in the app push OTLP to a collector sidecar in each ECS task | Metrics and traces |
+| Telemetry | OpenTelemetry SDKs in the app push OTLP to the Grafana Cloud gateway | Metrics, traces and logs |
 | Backend | One Grafana Cloud stack shared by every product | Dashboards, alert rules and contact points are provisioned centrally; each product adds its own alert rule group |
-| Logs | A FireLens (Fluent Bit) sidecar ships application logs to Grafana | CloudWatch was tried for application logs and removed on purpose |
-| Infrastructure alarms | CloudWatch alarms and an SNS topic for signals only AWS can see (ECS task health, RDS, queues) | Application symptoms (error rate, latency, pool contention, job failures) alert from Grafana instead |
+| Logs | The app writes structured logs; the cluster ships them (Alloy) to Grafana Cloud Loki | |
+| Infrastructure alarms | ArgoCD sync/health, CNPG and node signals alert from Grafana Cloud and the ArgoCD notification channel | Application symptoms (error rate, latency, pool contention, job failures) alert from Grafana |
 
 ### Email
 
 | Layer | What we run | Notes |
 | :---- | :---------- | :---- |
-| Transport | Microsoft 365 through the Graph API, sending from one shared mailbox per product, behind the `platform-mail` contract | **Migration in progress.** Products still send through Amazon SES today and are moving to `platform-mail`; once a product has moved, its SES configuration and bounce plumbing go away |
+| Transport | Microsoft 365 through the Graph API, sending from one shared mailbox per product, behind the `platform-mail` contract | Product mail goes through Graph; the legacy SES path was removed with the cloud exit |
 | Non-production | An SMTP transport, or a transport that only logs | Local development never sends real mail |
 
 ### Secrets
 
 | Layer | What we run | Notes |
 | :---- | :---------- | :---- |
-| Storage | AWS Secrets Manager: **one bundle (a single JSON secret) per product and environment**, named `<product>/<env>/app`, one key per value, read key by key by the ECS task definition | |
-| Ownership | OpenTofu owns the container, the declared keys and the wiring into task definitions and IAM, and **never the values**. The owner sets the values from the product's runbook, out of band | Values never appear in Terraform state, code, logs or chat |
-| Rotation | Most values are issued by other systems (Entra, Cloudflare, GitHub), so rotation happens at the issuer and the new value is written to the bundle. A **signing key** that a verifier must keep accepting during the change rotates with a `-previous` companion key: the verifier gets both first, then the signer moves, then the old key is dropped | There is no rotation automation; the database master password is the exception (RDS-managed) |
+| Storage | Azure Key Vault (`kv-qnsc-dev` / `kv-qnsc-prod`), reaching pods through External Secrets as a Kubernetes Secret per product and environment | Admin secrets live in the owner's 1Password vault |
+| Ownership | OpenTofu owns the vault entries and the secret references, and **never the values**. The owner sets the values from the product's runbook, out of band | Values never appear in Terraform state, code, logs or chat |
+| Rotation | Most values are issued by other systems (Entra, Cloudflare, GitHub), so rotation happens at the issuer and the new value is written to the vault. A **signing key** that a verifier must keep accepting during the change rotates with a `-previous` companion key: the verifier gets both first, then the signer moves, then the old key is dropped | There is no rotation automation; the database password is CNPG-managed |
 
 ### Delivery and quality
 
 | Layer | What we run | Notes |
 | :---- | :---------- | :---- |
-| CI/CD | GitHub Actions. Shared logic lives in `ci` as reusable workflows and composite actions, consumed at a major version tag | Product workflows are thin callers |
+| CI/CD | GitHub Actions. Shared logic lives in `ci` as reusable workflows and composite actions, consumed at a full SHA with a `# vX.Y.Z` comment (`v1` is frozen) | Product workflows are thin callers |
 | Required checks | One aggregate gate per workflow (`Backend CI required`, `Web CI required`) that fails if any job it depends on was skipped, cancelled or failed | Closes the hole where GitHub counts a skipped required check as passing |
 | Releases | release-please: Conventional Commits drive a release PR, merging it tags the release | Every package and product has its own changelog |
 | Dependencies | Renovate with a shared preset in this repository; `@quynhonsemiconductor/*` updates arrive as one grouped PR per product | Regular updates wait out the **14-day release-age rule** — a dependency release younger than 14 days is not taken. **Security-fix exception:** a vulnerability-fix release may be taken immediately when it is published via npm/PyPI **Trusted Publishing** (provenance) from the official repo, and the override is recorded in the PR body (owner-approved precedent: KB pillow 13.0.0 and certifi 2026.10.19). Renovate opens these PRs immediately — `osvVulnerabilityAlerts` + the `vulnerabilityAlerts` block in `renovate-config.json`, labels `security`, `minimumReleaseAge` 0 days for vulnerability PRs only, no automerge for majors |
@@ -146,14 +146,11 @@ There is also a private, never-published `testing` package (the testcontainers h
 Not running for the products yet, stated at a high level so a new engineer is not surprised by the repositories that
 already exist for it.
 
-- **Hybrid estate: cloud plus an on-premises Kubernetes (k3s) cluster.** The `gitops` repository holds the desired
-  state: one Helm chart for every service, one values file per product and environment, and ArgoCD applications that
-  reconcile them. A product repository never touches a cluster; CI builds and attests the image, then bumps an image
-  tag in `gitops`. Rova is first and runs on both paths side by side until the cutover is proven and reversible.
-- **Secrets on the cluster:** the same bundles, with the same key names, move to Azure Key Vault through External
-  Secrets on the on-premises cluster (the `identity` package documents this). The External Secrets store checked into
-  `gitops` points at AWS Secrets Manager today.
-- **Infrastructure consolidation.** Each product repository still carries its own `infra/` directory; the plan is for
-  one product-profile module in `infra` to replace the three copies.
+- **On-prem only.** Everything product-facing runs on the on-premises k3s estate; the cloud account is closed. The
+  `gitops` repository holds the desired state: one Helm chart for every service, one values file per product and
+  environment, and ArgoCD applications that reconcile them. A product repository never touches a cluster; CI builds
+  and attests the image once, the bot writes the digest into `gitops`, and a release tag retags the SAME digest.
+- **One prod gate.** The only approval for production is the merge of the gitops promotion PR, which carries the
+  release changelog and the dev health.
 - **Shared packages not yet adopted:** `platform-jobs` (durable jobs) and `platform-mail` (Graph email) are built and
   released; products move onto them one at a time.
