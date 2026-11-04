@@ -284,6 +284,67 @@
       "allowedVersions": "/-pg18$/"
     },
     {
+      "description": "Patch bumps Renovate finds through the regex managers (gitops versions.yaml charts/images, infra TOFU_VERSION) automerge like any other patch: they are single-line diffs in machine-owned files, and the required checks still gate them. minimumReleaseAge stays the org floor (3 days).",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "automerge": true,
+      "labels": [
+        "dependencies"
+      ]
+    },
+    {
+      "description": "PROD-CRITICAL platform components are never auto-merged, whatever their update type: ArgoCD, the host and in-cluster collectors, the tunnel binary, Valkey/PostgreSQL engines, the CNPG operator and its plugin, cert-manager, ESO and OpenTofu itself. Declared AFTER the patch-automerge rule above on purpose — a later match wins, so this list overrides it. Same reasoning as the data-store and shared-CI rules: a green patch of one of these is still an availability decision, not a chore.",
+      "matchPackageNames": [
+        "argo-cd",
+        "grafana/alloy",
+        "docker.io/grafana/alloy",
+        "cloudflare/cloudflared",
+        "docker.io/cloudflare/cloudflared",
+        "valkey/valkey",
+        "ghcr.io/cloudnative-pg/postgresql",
+        "grafana/beyla",
+        "grafana/beyla-k8s-cache",
+        "k8s-monitoring",
+        "external-secrets",
+        "cert-manager",
+        "cloudnative-pg",
+        "plugin-barman-cloud",
+        "opentofu/opentofu",
+        "docker.io/grafana/beyla",
+        "docker.io/grafana/beyla-k8s-cache",
+        "nvidia-device-plugin",
+        "prometheus-operator-crds",
+        "oliver006/redis_exporter",
+        "ghcr.io/huggingface/text-embeddings-inference",
+        "docker.io/clamav/clamav",
+        "clamav/clamav",
+        "amazon/aws-cli",
+        "alpine/k8s",
+        "python",
+        "docker.io/library/python"
+      ],
+      "automerge": false,
+      "labels": [
+        "dependencies",
+        "platform"
+      ]
+    },
+    {
+      "description": "Helm CHART pins never automerge, whatever their update type. They are two-file pins (versions.yaml and the Application's targetRevision) and a chart version is what renders the platform; a green patch is still a decision. Matches datasource, so it covers every chart manager.",
+      "matchDatasources": [
+        "helm"
+      ],
+      "automerge": false,
+      "labels": [
+        "dependencies",
+        "platform"
+      ]
+    },
+    {
       "description": "First-party packages: their own group, never auto-merged. They are published from app-platform by this org and released together, so a bump to them is a platform decision — burying one in a group with a third-party patch loses that signal. THIS RULE MUST STAY LAST. Renovate applies packageRules in order and a later match overwrites an earlier one field by field. While this rule sat FIRST, the generic 'npm production (non-major)' rule above matched the same packages and overwrote its groupName, so @quynhonsemiconductor/identity and platform-cache were both proposed inside a 46-package third-party group in rova and opshub — the exact outcome this rule exists to prevent. It was invisible because the group PR is still opened and still green; only the dashboard's package list shows where they ended up. minimumReleaseAge null: the org preset now waits 3 days top-level; first-party packages are exempt (published by our own pipeline, and pnpm's runtime gate excludes them per repo).",
       "matchPackageNames": [
         "/^@quynhonsemiconductor\\//"
@@ -304,5 +365,247 @@
   ],
   "rebaseWhen": "conflicted",
   "updateNotScheduled": false,
-  "minimumReleaseAge": "3 days"
+  "minimumReleaseAge": "3 days",
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "gitops versions.yaml: the argo-cd chart pin (helm datasource, registry fixed per chart). Bounded lookahead so the comment lines between `repo:` and `version:` do not hide it.",
+      "managerFilePatterns": [
+        "/(^|/)versions\\.yaml$/"
+      ],
+      "matchStrings": [
+        "chart: argo-cd\\n(?:[^\\n]*\\n){0,10}?\\s+version: \"(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://argoproj.github.io/argo-helm",
+      "depNameTemplate": "argo-cd"
+    },
+    {
+      "customType": "regex",
+      "description": "gitops apps/*.yaml: the Application's own argo-cd chart pin (targetRevision). The chart version lives in TWO files; one depName so Renovate bumps both in one PR, or neither.",
+      "managerFilePatterns": [
+        "/(^|/)apps/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "repoURL: https://argoproj.github.io/argo-helm\\n\\s+chart: argo-cd\\n\\s+targetRevision: \"(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://argoproj.github.io/argo-helm",
+      "depNameTemplate": "argo-cd"
+    },
+    {
+      "customType": "regex",
+      "description": "gitops versions.yaml: the alloy chart pin (helm datasource, registry fixed per chart). Bounded lookahead so the comment lines between `repo:` and `version:` do not hide it.",
+      "managerFilePatterns": [
+        "/(^|/)versions\\.yaml$/"
+      ],
+      "matchStrings": [
+        "chart: alloy\\n(?:[^\\n]*\\n){0,10}?\\s+version: \"(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://grafana.github.io/helm-charts",
+      "depNameTemplate": "alloy"
+    },
+    {
+      "customType": "regex",
+      "description": "gitops versions.yaml: the external-secrets chart pin (helm datasource, registry fixed per chart). Bounded lookahead so the comment lines between `repo:` and `version:` do not hide it.",
+      "managerFilePatterns": [
+        "/(^|/)versions\\.yaml$/"
+      ],
+      "matchStrings": [
+        "chart: external-secrets\\n(?:[^\\n]*\\n){0,10}?\\s+version: \"(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://charts.external-secrets.io",
+      "depNameTemplate": "external-secrets"
+    },
+    {
+      "customType": "regex",
+      "description": "gitops versions.yaml: the cert-manager chart pin (helm datasource, registry fixed per chart). Bounded lookahead so the comment lines between `repo:` and `version:` do not hide it.",
+      "managerFilePatterns": [
+        "/(^|/)versions\\.yaml$/"
+      ],
+      "matchStrings": [
+        "chart: cert-manager\\n(?:[^\\n]*\\n){0,10}?\\s+version: \"(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://charts.jetstack.io",
+      "depNameTemplate": "cert-manager"
+    },
+    {
+      "customType": "regex",
+      "description": "gitops versions.yaml: the cloudnative-pg chart pin (helm datasource, registry fixed per chart). Bounded lookahead so the comment lines between `repo:` and `version:` do not hide it.",
+      "managerFilePatterns": [
+        "/(^|/)versions\\.yaml$/"
+      ],
+      "matchStrings": [
+        "chart: cloudnative-pg\\n(?:[^\\n]*\\n){0,10}?\\s+version: \"(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://cloudnative-pg.github.io/charts",
+      "depNameTemplate": "cloudnative-pg"
+    },
+    {
+      "customType": "regex",
+      "description": "gitops versions.yaml: the plugin-barman-cloud chart pin (helm datasource, registry fixed per chart). Bounded lookahead so the comment lines between `repo:` and `version:` do not hide it.",
+      "managerFilePatterns": [
+        "/(^|/)versions\\.yaml$/"
+      ],
+      "matchStrings": [
+        "chart: plugin-barman-cloud\\n(?:[^\\n]*\\n){0,10}?\\s+version: \"(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://cloudnative-pg.github.io/charts",
+      "depNameTemplate": "plugin-barman-cloud"
+    },
+    {
+      "customType": "regex",
+      "description": "gitops versions.yaml: the prometheus-operator-crds chart pin (helm datasource, registry fixed per chart). Bounded lookahead so the comment lines between `repo:` and `version:` do not hide it.",
+      "managerFilePatterns": [
+        "/(^|/)versions\\.yaml$/"
+      ],
+      "matchStrings": [
+        "chart: prometheus-operator-crds\\n(?:[^\\n]*\\n){0,10}?\\s+version: \"(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://prometheus-community.github.io/helm-charts",
+      "depNameTemplate": "prometheus-operator-crds"
+    },
+    {
+      "customType": "regex",
+      "description": "gitops versions.yaml: the nvidia-device-plugin chart pin (helm datasource, registry fixed per chart). Bounded lookahead so the comment lines between `repo:` and `version:` do not hide it.",
+      "managerFilePatterns": [
+        "/(^|/)versions\\.yaml$/"
+      ],
+      "matchStrings": [
+        "chart: nvidia-device-plugin\\n(?:[^\\n]*\\n){0,10}?\\s+version: \"(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://nvidia.github.io/k8s-device-plugin",
+      "depNameTemplate": "nvidia-device-plugin"
+    },
+    {
+      "customType": "regex",
+      "description": "gitops apps/*.yaml: the Application's own nvidia-device-plugin chart pin (targetRevision). The chart version lives in TWO files; one depName so Renovate bumps both in one PR, or neither.",
+      "managerFilePatterns": [
+        "/(^|/)apps/.*\\.yaml$/"
+      ],
+      "matchStrings": [
+        "repoURL: https://nvidia.github.io/k8s-device-plugin\\n\\s+chart: nvidia-device-plugin\\n\\s+targetRevision: \"(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://nvidia.github.io/k8s-device-plugin",
+      "depNameTemplate": "nvidia-device-plugin"
+    },
+    {
+      "customType": "regex",
+      "description": "gitops versions.yaml: the k8s-monitoring chart pin (helm datasource, registry fixed per chart). Bounded lookahead so the comment lines between `repo:` and `version:` do not hide it.",
+      "managerFilePatterns": [
+        "/(^|/)versions\\.yaml$/"
+      ],
+      "matchStrings": [
+        "chart: k8s-monitoring\\n(?:[^\\n]*\\n){0,10}?\\s+version: \"(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://grafana.github.io/helm-charts",
+      "depNameTemplate": "k8s-monitoring"
+    },
+    {
+      "customType": "regex",
+      "description": "gitops manifests + versions.yaml: container images pinned tag@sha256 (valkey, postgres ImageCatalog, cloudflared, redis_exporter, TEI, aws-cli, alpine/k8s, python). The docker datasource bumps tag and digest together.",
+      "managerFilePatterns": [
+        "/(^|/)versions\\.yaml$/",
+        "/(^|/)platform/.*\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "image:\\s+(?<depName>[A-Za-z0-9._/-]+):(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[0-9a-f]{64})"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "gitops versions.yaml images.cloudflared: quoted `tag@sha256` with no `image:` prefix. No leading anchor: matchStrings run with the global flag, where `^` would match only the first line.",
+      "managerFilePatterns": [
+        "/(^|/)versions\\.yaml$/"
+      ],
+      "matchStrings": [
+        "\\s+cloudflared: \"(?<currentValue>[^\"@]+)@(?<currentDigest>sha256:[0-9a-f]{64})\""
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "cloudflare/cloudflared"
+    },
+    {
+      "customType": "regex",
+      "description": "gitops versions.yaml images.alloy: §12 collector binary, quoted `docker.io/...:vX@sha256` without an `image:` prefix and with no leading anchor (global-flag matchStrings).",
+      "managerFilePatterns": [
+        "/(^|/)versions\\.yaml$/"
+      ],
+      "matchStrings": [
+        "\\s+alloy: \"docker\\.io/grafana/alloy:v(?<currentValue>[0-9.]+)@(?<currentDigest>sha256:[0-9a-f]{64})\""
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "docker.io/grafana/alloy"
+    },
+    {
+      "customType": "regex",
+      "description": "gitops versions.yaml images.clamav: quoted `tag@sha256` without an `image:` prefix. The clamd manifest carries the same pin; one depName so both move together.",
+      "managerFilePatterns": [
+        "/(^|/)versions\\.yaml$/"
+      ],
+      "matchStrings": [
+        "\\s+clamav: \"(?<currentValue>[^\"@]+)@(?<currentDigest>sha256:[0-9a-f]{64})\""
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "clamav/clamav"
+    },
+    {
+      "customType": "regex",
+      "description": "gitops k8s-monitoring.values.yaml: Beyla image, tag + digest on separate lines (generic image manager cannot see it).",
+      "managerFilePatterns": [
+        "/(^|/)platform/alloy/k8s-monitoring\\.values\\.yaml$/"
+      ],
+      "matchStrings": [
+        "autoInstrumentation:\\n(?:.*\\n)*?\\s+beyla:\\n(?:.*\\n)*?\\s+image:\\n\\s+tag: \"(?<currentValue>[^\"]+)\"\\n\\s+digest: (?<currentDigest>sha256:[0-9a-f]{64})"
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "docker.io/grafana/beyla"
+    },
+    {
+      "customType": "regex",
+      "description": "gitops k8s-monitoring.values.yaml: Beyla's k8s-cache sidecar, tag + digest.",
+      "managerFilePatterns": [
+        "/(^|/)platform/alloy/k8s-monitoring\\.values\\.yaml$/"
+      ],
+      "matchStrings": [
+        "k8sCache:\\n\\s+replicas: 1\\n\\s+image:\\n\\s+tag: \"(?<currentValue>[^\"]+)\"\\n\\s+digest: (?<currentDigest>sha256:[0-9a-f]{64})"
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "docker.io/grafana/beyla-k8s-cache"
+    },
+    {
+      "customType": "regex",
+      "description": "gitops k8s-monitoring.values.yaml: in-cluster Alloy collector image, tag + digest.",
+      "managerFilePatterns": [
+        "/(^|/)platform/alloy/k8s-monitoring\\.values\\.yaml$/"
+      ],
+      "matchStrings": [
+        "collectors:\\n\\s+alloy:\\n(?:.*\\n)*?\\s{4}alloy:\\n(?:.*\\n)*?\\s+image:\\n\\s+tag: (?<currentValue>v[0-9.]+)\\n\\s+digest: (?<currentDigest>sha256:[0-9a-f]{64})"
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "docker.io/grafana/alloy"
+    },
+    {
+      "customType": "regex",
+      "description": "infra workflows: TOFU_VERSION, the OpenTofu version every job installs.",
+      "managerFilePatterns": [
+        "/(^|/)\\.github/workflows/.*\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "TOFU_VERSION:\\s*\"(?<currentValue>[0-9.]+)\""
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "opentofu/opentofu",
+      "versioningTemplate": "semver"
+    }
+  ]
 }
