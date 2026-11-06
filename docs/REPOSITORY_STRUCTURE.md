@@ -48,7 +48,6 @@ not listed here.
 | Repository | What it is |
 | :--------- | :--------- |
 | [`chipgraph`](https://github.com/quynhonsemiconductor/chipgraph) | An AI agent system for chip design: a chip project as a build graph of specs, RTL and tests, with deterministic EDA checks and human approval gates. Pre-alpha |
-| [`mcp-tools`](https://github.com/quynhonsemiconductor/mcp-tools) | A Model Context Protocol server giving AI assistants access to GitHub, Microsoft 365, Rova and a browser, with each person's own permissions |
 | [`vlsi_deep_training`](https://github.com/quynhonsemiconductor/vlsi_deep_training) | QSOC, an RV32IMC microcontroller designed block by block as a deep-training project |
 
 ### Forks and archived
@@ -57,6 +56,7 @@ not listed here.
 | :--------- | :----- |
 | [`code-review`](https://github.com/quynhonsemiconductor/code-review) | **Fork** of an open-source code-review tool, pinned by commit; the pull-request AI review check in `ci` runs it |
 | [`VLSIT_RTL_Generator_AI_Model`](https://github.com/quynhonsemiconductor/VLSIT_RTL_Generator_AI_Model) | **Fork** of a third-party RTL generation project |
+| [`mcp-tools`](https://github.com/quynhonsemiconductor/mcp-tools) | **Archived** (retired 2026-11-06). The MCP toolkit; its Microsoft 365 tools are replaced by Claude's Microsoft 365 connector, its GitHub tools by the GitHub MCP via the hub, and its Rova tools by rova MCP v2 |
 | `solodesk` | **Archived** (retired 2026-10-10); private, read-only history |
 
 ## Inside a product repository
