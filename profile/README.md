@@ -53,7 +53,7 @@ for our own teams — not our silicon IP, which lives elsewhere.
 | **Knowledge Base** | Enterprise knowledge search for our teams: hybrid retrieval over documents we ingest | [`qnsc-kb-backend`](https://github.com/quynhonsemiconductor/qnsc-kb-backend) · [`qnsc-kb-frontend`](https://github.com/quynhonsemiconductor/qnsc-kb-frontend) |
 | **Shared platform** | The code every product reuses: application packages, CI workflows, infrastructure modules and platform infrastructure, GitOps for the Kubernetes estate | [`app-platform`](https://github.com/quynhonsemiconductor/app-platform) · [`ci`](https://github.com/quynhonsemiconductor/ci) · [`tf-modules`](https://github.com/quynhonsemiconductor/tf-modules) · [`infra`](https://github.com/quynhonsemiconductor/infra) · [`infra-template`](https://github.com/quynhonsemiconductor/infra-template) · [`gitops`](https://github.com/quynhonsemiconductor/gitops) |
 | **Chip-design tooling** | An AI agent system for chip design, and a microcontroller built block by block as a training project | [`chipgraph`](https://github.com/quynhonsemiconductor/chipgraph) · [`vlsi_deep_training`](https://github.com/quynhonsemiconductor/vlsi_deep_training) |
-| **Developer tools & web** | An MCP server for GitHub, Microsoft 365, Rova and a browser; the company marketing site | [`mcp-tools`](https://github.com/quynhonsemiconductor/mcp-tools) · [`qnsc-landing`](https://github.com/quynhonsemiconductor/qnsc-landing) |
+| **Developer tools & web** | The company marketing site | [`qnsc-landing`](https://github.com/quynhonsemiconductor/qnsc-landing) |
 
 New here? Start with the engineering docs in this repository:
 
